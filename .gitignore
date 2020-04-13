@@ -9,6 +9,9 @@
 # Visual Studio Code
 .vscode/
 
+# Jet Brains
+.idea/
+
 # macOS
 .DS_Store
 .AppleDouble
