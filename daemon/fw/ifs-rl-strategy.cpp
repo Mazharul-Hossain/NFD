@@ -23,6 +23,7 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <boost/python.hpp>
 #include "ifs-rl-strategy.hpp"
 #include "algorithm.hpp"
 #include "common/global.hpp"
@@ -54,12 +55,14 @@ namespace nfd {
                 }
                 this->setInstanceName(makeInstanceName(name, getStrategyName()));
 
+                Py_Initialize()
+
                 NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
                                                   << " n-silent-timeouts=" << m_maxSilentTimeouts);
             }
 
             const Name & IFSRLStrategy::getStrategyName() {
-                static Name strategyName("/localhost/nfd/strategy/asf/%FD%03");
+                static Name strategyName("/localhost/nfd/strategy/ifs-rl/%FD%03");
                 return strategyName;
             }
 
@@ -95,6 +98,15 @@ namespace nfd {
                 }
             }
 
+            /*
+             * afterReceiveInterest
+             *
+             * @see page 40 of documents for details
+             *
+             * @param ingress its incoming face
+             * @param interest Interest packet
+             * @param pitEntry the PIT entry
+             * */
             void IFSRLStrategy::afterReceiveInterest(const FaceEndpoint &ingress, const Interest &interest,
                                               const shared_ptr <pit::Entry> &pitEntry) {
                 // Should the Interest be suppressed?
@@ -153,7 +165,9 @@ namespace nfd {
 
             void IFSRLStrategy::beforeSatisfyInterest(const shared_ptr <pit::Entry> &pitEntry,
                                                const FaceEndpoint &ingress, const Data &data) {
+
                 NamespaceInfo *namespaceInfo = m_measurements.getNamespaceInfo(pitEntry->getName());
+
                 if (namespaceInfo == nullptr) {
                     NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress << " no-measurements");
                     return;
@@ -263,6 +277,9 @@ namespace nfd {
                 }
             };
 
+            /*
+             * This method needs to be changed
+             * */
             Face * IFSRLStrategy::getBestFaceForForwarding(const Interest &interest, const Face &inFace,
                                                   const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry,
                                                   bool isInterestNew) {
