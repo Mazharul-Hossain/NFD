@@ -25,4 +25,9 @@ class ModelMain():
         timestamp_str = datetime.now().strftime(TimeFormat)
 
         print("{} Process#{}: {}".format(
-            timestamp_str, os.getpid(), message, file=self.log_file, flush=True)
+            timestamp_str, os.getpid(), message, file=self.log_file, flush=True))
+
+    def face_info_for_ranking(self, face, last_rtt, s_rtt, cost, is_passing_null):
+        message = type(face) + face + type(last_rtt) + last_rtt + type(s_rtt) + s_rtt + type(
+            cost) + cost + is_passing_null
+        self.log_to_file(message)

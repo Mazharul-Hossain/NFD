@@ -23,7 +23,6 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <boost/python.hpp>
 #include "ifs-rl-strategy.hpp"
 #include "algorithm.hpp"
 #include "common/global.hpp"
@@ -72,17 +71,16 @@ namespace nfd {
                 namespace python = boost::python;
                 try {
                     // >>> import MyPythonClass
-                    python::object my_python_class_module = python::import("model_main");
+                    my_python_class_module = python::import("model_main");
 
                     // >>> dog = MyPythonClass.Dog()
-                    python::object dog = my_python_class_module.attr("Dog")();
+                    model_main_class = my_python_class_module.attr("ModelMain")();
 
                     // >>> dog.bark("woof");
-                    dog.attr("bark")("woof");
+                    // dog.attr("bark")("woof");
                 }
                 catch (const python::error_already_set &) {
                     PyErr_Print();
-                    return 1;
                 }
             }
 
@@ -321,8 +319,27 @@ namespace nfd {
                     if (info == nullptr) {
                         rankedFaces.insert({&nh.getFace(), FaceInfo::RTT_NO_MEASUREMENT,
                                             FaceInfo::RTT_NO_MEASUREMENT, nh.getCost()});
+
+                        namespace python = boost::python;
+                        try {
+                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), FaceInfo::RTT_NO_MEASUREMENT,
+                                                                           FaceInfo::RTT_NO_MEASUREMENT, nh.getCost(),
+                                                                           "null");
+                        }
+                        catch (const python::error_already_set &) {
+                            PyErr_Print();
+                        }
                     } else {
                         rankedFaces.insert({&nh.getFace(), info->getLastRtt(), info->getSrtt(), nh.getCost()});
+
+                        namespace python = boost::python;
+                        try {
+                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), info->getLastRtt(),
+                                                                           info->getSrtt(), nh.getCost(), "");
+                        }
+                        catch (const python::error_already_set &) {
+                            PyErr_Print();
+                        }
                     }
                 }
 

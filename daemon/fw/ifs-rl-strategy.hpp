@@ -26,6 +26,7 @@
 #ifndef NFD_DAEMON_FW_IFS_RL_STRATEGY_HPP
 #define NFD_DAEMON_FW_IFS_RL_STRATEGY_HPP
 
+#include <boost/python.hpp>
 #include "asf-measurements.hpp"
 #include "asf-probing-module.hpp"
 #include "fw/retx-suppression-exponential.hpp"
@@ -84,6 +85,10 @@ namespace nfd {
 
                 static const time::milliseconds RETX_SUPPRESSION_INITIAL;
                 static const time::milliseconds RETX_SUPPRESSION_MAX;
+
+
+                boost::python::object my_python_class_module;
+                boost::python::object model_main_class;
             };
 
         } // namespace ifs_rl
