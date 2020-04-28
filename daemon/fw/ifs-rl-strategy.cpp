@@ -39,6 +39,12 @@ namespace nfd {
             const time::milliseconds IFSRLStrategy::RETX_SUPPRESSION_INITIAL(10);
             const time::milliseconds IFSRLStrategy::RETX_SUPPRESSION_MAX(250);
 
+            /*
+             * IFSRLStrategy class initializer
+             *
+             * @param Forwarder host identification
+             * @param Name Strategy Name
+             * */
             IFSRLStrategy::IFSRLStrategy(Forwarder &forwarder, const Name &name)
                     : Strategy(forwarder), m_measurements(getMeasurements()), m_probing(m_measurements),
                       m_retxSuppression(RETX_SUPPRESSION_INITIAL, RetxSuppressionExponential::DEFAULT_MULTIPLIER,
@@ -55,13 +61,32 @@ namespace nfd {
                 }
                 this->setInstanceName(makeInstanceName(name, getStrategyName()));
 
-                Py_Initialize()
+                // Allow Python to load modules from the current directory.
+                setenv("PYTHONPATH", "./IFS-RL", 1);
+                // Initialize Python.
+                Py_Initialize();
 
                 NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
                                                   << " n-silent-timeouts=" << m_maxSilentTimeouts);
+
+                namespace python = boost::python;
+                try {
+                    // >>> import MyPythonClass
+                    python::object my_python_class_module = python::import("model_main");
+
+                    // >>> dog = MyPythonClass.Dog()
+                    python::object dog = my_python_class_module.attr("Dog")();
+
+                    // >>> dog.bark("woof");
+                    dog.attr("bark")("woof");
+                }
+                catch (const python::error_already_set &) {
+                    PyErr_Print();
+                    return 1;
+                }
             }
 
-            const Name & IFSRLStrategy::getStrategyName() {
+            const Name &IFSRLStrategy::getStrategyName() {
                 static Name strategyName("/localhost/nfd/strategy/ifs-rl/%FD%03");
                 return strategyName;
             }
@@ -108,7 +133,7 @@ namespace nfd {
              * @param pitEntry the PIT entry
              * */
             void IFSRLStrategy::afterReceiveInterest(const FaceEndpoint &ingress, const Interest &interest,
-                                              const shared_ptr <pit::Entry> &pitEntry) {
+                                                     const shared_ptr <pit::Entry> &pitEntry) {
                 // Should the Interest be suppressed?
                 auto suppressResult = m_retxSuppression.decidePerPitEntry(*pitEntry);
                 if (suppressResult == RetxSuppressionResult::SUPPRESS) {
@@ -164,7 +189,7 @@ namespace nfd {
             }
 
             void IFSRLStrategy::beforeSatisfyInterest(const shared_ptr <pit::Entry> &pitEntry,
-                                               const FaceEndpoint &ingress, const Data &data) {
+                                                      const FaceEndpoint &ingress, const Data &data) {
 
                 NamespaceInfo *namespaceInfo = m_measurements.getNamespaceInfo(pitEntry->getName());
 
@@ -197,13 +222,13 @@ namespace nfd {
             }
 
             void IFSRLStrategy::afterReceiveNack(const FaceEndpoint &ingress, const lp::Nack &nack,
-                                          const shared_ptr <pit::Entry> &pitEntry) {
+                                                 const shared_ptr <pit::Entry> &pitEntry) {
                 NFD_LOG_DEBUG(nack.getInterest() << " nack from=" << ingress << " reason=" << nack.getReason());
                 onTimeout(pitEntry->getName(), ingress.face.getId());
             }
 
             void IFSRLStrategy::forwardInterest(const Interest &interest, Face &outFace, const fib::Entry &fibEntry,
-                                         const shared_ptr <pit::Entry> &pitEntry, bool wantNewNonce) {
+                                                const shared_ptr <pit::Entry> &pitEntry, bool wantNewNonce) {
                 auto egress = FaceEndpoint(outFace, 0);
                 if (wantNewNonce) {
                     // Send probe: interest with new Nonce
@@ -233,7 +258,7 @@ namespace nfd {
             }
 
             void IFSRLStrategy::sendProbe(const Interest &interest, const FaceEndpoint &ingress, const Face &faceToUse,
-                                   const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry) {
+                                          const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry) {
                 if (!m_probing.isProbingNeeded(fibEntry, interest))
                     return;
 
@@ -280,9 +305,10 @@ namespace nfd {
             /*
              * This method needs to be changed
              * */
-            Face * IFSRLStrategy::getBestFaceForForwarding(const Interest &interest, const Face &inFace,
-                                                  const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry,
-                                                  bool isInterestNew) {
+            Face *IFSRLStrategy::getBestFaceForForwarding(const Interest &interest, const Face &inFace,
+                                                          const fib::Entry &fibEntry,
+                                                          const shared_ptr <pit::Entry> &pitEntry,
+                                                          bool isInterestNew) {
                 std::set <FaceStats, FaceStatsCompare> rankedFaces;
 
                 auto now = time::steady_clock::now();

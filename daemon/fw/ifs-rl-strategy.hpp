@@ -47,30 +47,30 @@ namespace nfd {
             public:
                 explicit IFSRLStrategy(Forwarder &forwarder, const Name &name = getStrategyName());
 
-                static const Name & getStrategyName();
+                static const Name &getStrategyName();
 
             public: // triggers
                 void afterReceiveInterest(const FaceEndpoint &ingress, const Interest &interest,
-                                     const shared_ptr <pit::Entry> &pitEntry) override;
+                                          const shared_ptr <pit::Entry> &pitEntry) override;
 
                 void beforeSatisfyInterest(const shared_ptr <pit::Entry> &pitEntry,
-                                      const FaceEndpoint &ingress, const Data &data) override;
+                                           const FaceEndpoint &ingress, const Data &data) override;
 
                 void afterReceiveNack(const FaceEndpoint &ingress, const lp::Nack &nack,
-                                 const shared_ptr <pit::Entry> &pitEntry) override;
+                                      const shared_ptr <pit::Entry> &pitEntry) override;
 
             private:
                 void processParams(const PartialName &parsed);
 
                 void forwardInterest(const Interest &interest, Face &outFace, const fib::Entry &fibEntry,
-                                const shared_ptr <pit::Entry> &pitEntry, bool wantNewNonce = false);
+                                     const shared_ptr <pit::Entry> &pitEntry, bool wantNewNonce = false);
 
                 void sendProbe(const Interest &interest, const FaceEndpoint &ingress, const Face &faceToUse,
-                          const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry);
+                               const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry);
 
-                Face * getBestFaceForForwarding(const Interest &interest, const Face &inFace,
-                                         const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry,
-                                         bool isNewInterest = true);
+                Face *getBestFaceForForwarding(const Interest &interest, const Face &inFace,
+                                               const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry,
+                                               bool isNewInterest = true);
 
                 void onTimeout(const Name &interestName, FaceId faceId);
 
