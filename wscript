@@ -170,7 +170,7 @@ def build(bld):
                                        'daemon/face/unix*.cpp',
                                        'daemon/face/websocket*.cpp',
                                        'daemon/main.cpp']),
-        use='core-objects',
+        use=['core-objects', 'lboost_python', 'lboost_system'],
         includes='daemon',
         export_includes='daemon')
 
