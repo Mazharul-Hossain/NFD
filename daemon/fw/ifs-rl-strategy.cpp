@@ -69,20 +69,20 @@ namespace nfd {
                 NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
                                                   << " n-silent-timeouts=" << m_maxSilentTimeouts);
 
-                namespace python = boost::python;
-                try {
-                    // >>> import MyPythonClass
-                    my_python_class_module = python::import("model_main");
-
-                    // >>> dog = MyPythonClass.Dog()
-                    model_main_class = my_python_class_module.attr("ModelMain")();
-
-                    // >>> dog.bark("woof");
-                    // dog.attr("bark")("woof");
-                }
-                catch (const python::error_already_set &) {
-                    PyErr_Print();
-                }
+//                namespace python = boost::python;
+//                try {
+//                    // >>> import MyPythonClass
+//                    my_python_class_module = python::import("model_main");
+//
+//                    // >>> dog = MyPythonClass.Dog()
+//                    model_main_class = my_python_class_module.attr("ModelMain")();
+//
+//                    // >>> dog.bark("woof");
+//                    // dog.attr("bark")("woof");
+//                }
+//                catch (const python::error_already_set &) {
+//                    PyErr_Print();
+//                }
             }
 
             const Name &IFSRLStrategy::getStrategyName() {
@@ -321,26 +321,26 @@ namespace nfd {
                         rankedFaces.insert({&nh.getFace(), FaceInfo::RTT_NO_MEASUREMENT,
                                             FaceInfo::RTT_NO_MEASUREMENT, nh.getCost()});
 
-                        namespace python = boost::python;
-                        try {
-                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), FaceInfo::RTT_NO_MEASUREMENT,
-                                                                           FaceInfo::RTT_NO_MEASUREMENT, nh.getCost(),
-                                                                           "null");
-                        }
-                        catch (const python::error_already_set &) {
-                            PyErr_Print();
-                        }
+//                        namespace python = boost::python;
+//                        try {
+//                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), FaceInfo::RTT_NO_MEASUREMENT,
+//                                                                           FaceInfo::RTT_NO_MEASUREMENT, nh.getCost(),
+//                                                                           "null");
+//                        }
+//                        catch (const python::error_already_set &) {
+//                            PyErr_Print();
+//                        }
                     } else {
                         rankedFaces.insert({&nh.getFace(), info->getLastRtt(), info->getSrtt(), nh.getCost()});
 
-                        namespace python = boost::python;
-                        try {
-                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), info->getLastRtt(),
-                                                                           info->getSrtt(), nh.getCost(), "");
-                        }
-                        catch (const python::error_already_set &) {
-                            PyErr_Print();
-                        }
+//                        namespace python = boost::python;
+//                        try {
+//                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), info->getLastRtt(),
+//                                                                           info->getSrtt(), nh.getCost(), "");
+//                        }
+//                        catch (const python::error_already_set &) {
+//                            PyErr_Print();
+//                        }
                     }
                 }
 
