@@ -31,7 +31,8 @@
 #include "fw/retx-suppression-exponential.hpp"
 #include "fw/strategy.hpp"
 
-#include <boost/python.hpp>
+#include <boost/python.hpp> //boost libraries
+#include <Python.h> //python libraries
 
 namespace nfd {
     namespace fw {
