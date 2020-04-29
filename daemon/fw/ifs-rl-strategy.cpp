@@ -69,20 +69,20 @@ namespace nfd {
                 NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
                                                   << " n-silent-timeouts=" << m_maxSilentTimeouts);
 
-//                namespace python = boost::python;
-//                try {
-//                    // >>> import MyPythonClass
-//                    my_python_class_module = python::import("model_main");
-//
-//                    // >>> dog = MyPythonClass.Dog()
-//                    model_main_class = my_python_class_module.attr("ModelMain")();
-//
-//                    // >>> dog.bark("woof");
-//                    // dog.attr("bark")("woof");
-//                }
-//                catch (const python::error_already_set &) {
-//                    PyErr_Print();
-//                }
+                namespace python = boost::python;
+                try {
+                    // >>> import MyPythonClass
+                    my_python_class_module = python::import("model_main");
+
+                    // >>> dog = MyPythonClass.Dog()
+                    model_main_class = my_python_class_module.attr("ModelMain")();
+
+                    // >>> dog.bark("woof");
+                    // dog.attr("bark")("woof");
+                }
+                catch (const python::error_already_set &) {
+                    PyErr_Print();
+                }
             }
 
             const Name &IFSRLStrategy::getStrategyName() {
