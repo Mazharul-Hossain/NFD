@@ -34,13 +34,11 @@
 
 namespace nfd {
     namespace fw {
-        namespace ifs_rl {
+        namespace asf {
 
 /** \brief Adaptive SRTT-based Forwarding Strategy
  *
- *  \see Vince Lehman, Ashlesh Gawande, Rodrigo Aldecoa, Dmitri Krioukov, Beichuan Zhang, Lixia Zhang, and Lan Wang,
- *       "An Experimental Investigation of Hyperbolic Routing with a Smart Forwarding Plane in NDN,"
- *       NDN Technical Report NDN-0042, 2016. http://named-data.net/techreports.html
+ *  \see
  *
  *  \note This strategy is not EndpointId-aware.
  */
@@ -91,9 +89,9 @@ namespace nfd {
                 boost::python::object model_main_class;
             };
 
-        } // namespace ifs_rl
+        } // namespace asf
 
-        using ifs_rl::IFSRLStrategy;
+        using asf::IFSRLStrategy;
 
     } // namespace fw
 } // namespace nfd

@@ -31,7 +31,7 @@
 
 namespace nfd {
     namespace fw {
-        namespace ifs_rl {
+        namespace asf {
 
             NFD_LOG_INIT(IFSRLStrategy);
             NFD_REGISTER_STRATEGY(IFSRLStrategy);
@@ -384,6 +384,6 @@ namespace nfd {
                 this->rejectPendingInterest(pitEntry);
             }
 
-        } // namespace ifs_rl
+        } // namespace asf
     } // namespace fw
 } // namespace nfd
