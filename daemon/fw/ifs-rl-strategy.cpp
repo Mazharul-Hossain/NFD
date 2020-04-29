@@ -23,6 +23,7 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <boost/python.hpp>
 #include "ifs-rl-strategy.hpp"
 #include "algorithm.hpp"
 #include "common/global.hpp"
