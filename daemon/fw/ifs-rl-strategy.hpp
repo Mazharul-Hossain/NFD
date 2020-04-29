@@ -26,11 +26,12 @@
 #ifndef NFD_DAEMON_FW_IFS_RL_STRATEGY_HPP
 #define NFD_DAEMON_FW_IFS_RL_STRATEGY_HPP
 
-#include <boost/python.hpp>
 #include "asf-measurements.hpp"
 #include "asf-probing-module.hpp"
 #include "fw/retx-suppression-exponential.hpp"
 #include "fw/strategy.hpp"
+
+#include <boost/python.hpp>
 
 namespace nfd {
     namespace fw {
