@@ -61,6 +61,8 @@ def options(opt):
                       help='Build unit tests')
     nfdopt.add_option('--with-other-tests', action='store_true', default=False,
                       help='Build other tests')
+    nfdopt.add_option('--with-boost-python', action='store_true', default=False,
+                      help='Build unit tests')
 
     py_version = '%d%d' % (sys.version_info[0], sys.version_info[1])
     nfdopt.add_option('--boost-python', type='string',
@@ -100,6 +102,7 @@ def configure(conf):
 
     conf.env.WITH_TESTS = conf.options.with_tests
     conf.env.WITH_OTHER_TESTS = conf.options.with_other_tests
+    conf.env.WITH_BOOST_PYTHON = conf.options.with_boost_python
 
     conf.find_program('bash', var='BASH')
 
@@ -118,7 +121,7 @@ def configure(conf):
 
     conf.check_cxx(header_name='valgrind/valgrind.h', define_name='HAVE_VALGRIND', mandatory=False)
 
-    boost_libs = ['system', 'program_options', 'filesystem', 'python']
+    boost_libs = ['system', 'program_options', 'filesystem']
     if conf.env.WITH_TESTS or conf.env.WITH_OTHER_TESTS:
         boost_libs.append('unit_test_framework')
 
@@ -127,6 +130,9 @@ def configure(conf):
         conf.fatal('Minimum required Boost version is 1.58.0\n'
                    'Please upgrade your distribution or manually install a newer version of Boost'
                    ' (https://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)')
+
+    conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
+
 
     conf.load('unix-socket')
 
@@ -145,6 +151,7 @@ def configure(conf):
 
     conf.define_cond('WITH_TESTS', conf.env.WITH_TESTS)
     conf.define_cond('WITH_OTHER_TESTS', conf.env.WITH_OTHER_TESTS)
+    conf.define_cond('WITH_BOOST_PYTHON', conf.env.WITH_BOOST_PYTHON)
     conf.define('DEFAULT_CONFIG_FILE', '%s/ndn/nfd.conf' % conf.env.SYSCONFDIR)
     # The config header will contain all defines that were added using conf.define()
     # or conf.define_cond().  Everything that was added directly to conf.env.DEFINES
@@ -200,6 +207,10 @@ def build(bld):
 
     if bld.env.WITH_OTHER_TESTS:
         nfd_objects.source += bld.path.ant_glob('tests/other/fw/*.cpp')
+
+    if bld.env.WITH_BOOST_PYTHON:
+        nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp')
+        nfd_objects.use += ' BOOST_PYTHON'
 
     bld.program(name='nfd',
                 target='bin/nfd',
