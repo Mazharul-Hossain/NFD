@@ -130,7 +130,7 @@ def configure(conf):
         conf.fatal('Minimum required Boost version is 1.58.0\n'
                    'Please upgrade your distribution or manually install a newer version of Boost'
                    ' (https://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)')
-
+    # https://stackoverflow.com/a/15209182/2049763
     conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
 
 
