@@ -179,7 +179,7 @@ def build(bld):
                                        'daemon/face/pcap*.cpp',
                                        'daemon/face/unix*.cpp',
                                        'daemon/face/websocket*.cpp',
-                                       'daemon/fw/ifs-rl-strategy.cpp',
+                                       'daemon/fw/ifs-rl-*.*',
                                        'embedding/*',
                                        'daemon/main.cpp']),
             use=['core-objects'],
