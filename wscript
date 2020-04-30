@@ -25,6 +25,11 @@ NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
 
 from waflib import Context, Logs, Utils
 import os, subprocess
+import sys
+import re
+from waflib import Utils, Logs, Errors
+from waflib.Configure import conf
+from waflib.TaskGen import feature, after_method
 
 VERSION = '0.7.0'
 APPNAME = 'nfd'
@@ -56,6 +61,11 @@ def options(opt):
                       help='Build unit tests')
     nfdopt.add_option('--with-other-tests', action='store_true', default=False,
                       help='Build other tests')
+
+    py_version = '%d%d' % (sys.version_info[0], sys.version_info[1])
+    nfdopt.add_option('--boost-python', type='string',
+                   default=py_version, dest='boost_python',
+                   help='select the lib python with this version (default: %s)' % py_version)
 
 PRIVILEGE_CHECK_CODE = '''
 #include <unistd.h>
@@ -169,8 +179,10 @@ def build(bld):
                                        'daemon/face/pcap*.cpp',
                                        'daemon/face/unix*.cpp',
                                        'daemon/face/websocket*.cpp',
+                                       'daemon/fw/ifs-rl-strategy.cpp',
+                                       'embedding/*',
                                        'daemon/main.cpp']),
-            use=['core-objects', 'lboost_python', 'lboost_system'],
+            use=['core-objects'],
         includes='daemon',
         export_includes='daemon')
 
