@@ -193,11 +193,6 @@ def build(bld):
         includes='daemon',
         export_includes='daemon')
 
-    if bld.env.HAVE_LIBPCAP:
-        nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
-        nfd_objects.source += bld.path.ant_glob('daemon/face/pcap*.cpp')
-        nfd_objects.use += ' LIBPCAP'
-
     if bld.env.HAVE_UNIX_SOCKETS:
         nfd_objects.source += bld.path.ant_glob('daemon/face/unix*.cpp')
 
@@ -211,6 +206,11 @@ def build(bld):
     if bld.env.WITH_BOOST_PYTHON:
         nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp')
         nfd_objects.use += ' BOOST_PYTHON'
+
+    if bld.env.HAVE_LIBPCAP:
+        nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
+        nfd_objects.source += bld.path.ant_glob('daemon/face/pcap*.cpp')
+        nfd_objects.use += ' LIBPCAP'
 
     bld.program(name='nfd',
                 target='bin/nfd',

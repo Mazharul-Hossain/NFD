@@ -32,7 +32,7 @@
 #include "fw/strategy.hpp"
 
 #include <boost/python.hpp> //boost libraries
-#include <Python.h> //python libraries
+//#include <Python.h> //python libraries
 
 namespace nfd {
     namespace fw {
