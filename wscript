@@ -120,13 +120,16 @@ def configure(conf):
     if conf.env.WITH_TESTS or conf.env.WITH_OTHER_TESTS:
         boost_libs.append('unit_test_framework')
 
+    if conf.env.WITH_BOOST_PYTHON:
+        boost_libs.append('python')
+        # https://stackoverflow.com/a/15209182/2049763
+        # conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
+
     conf.check_boost(lib=boost_libs, mt=True)
     if conf.env.BOOST_VERSION_NUMBER < 105800:
         conf.fatal('Minimum required Boost version is 1.58.0\n'
                    'Please upgrade your distribution or manually install a newer version of Boost'
                    ' (https://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)')
-    # https://stackoverflow.com/a/15209182/2049763
-    conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
 
     conf.load('unix-socket')
 
@@ -199,7 +202,7 @@ def build(bld):
 
     if bld.env.WITH_BOOST_PYTHON:
         nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp')
-        nfd_objects.use += ' BOOST_PYTHON'
+        # nfd_objects.use += ' BOOST_PYTHON'
 
     if bld.env.HAVE_LIBPCAP:
         nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
