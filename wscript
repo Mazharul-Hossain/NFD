@@ -205,7 +205,6 @@ def build(bld):
     if bld.env.WITH_OTHER_TESTS:
         nfd_objects.source += bld.path.ant_glob('tests/other/fw/*.cpp')
 
-
     # /usr/bin/python3.6-config --cflags --libs --ldflags
     # https://waf.io/book/ https://groups.google.com/forum/#!topic/ns-3-users/mUicWdLn054
     # https://www.nsnam.org/wiki/HOWTO_use_ns-3_with_other_libraries
@@ -218,15 +217,15 @@ def build(bld):
             use='core-objects daemon-objects BOOST_PYTHON',
             includes='daemon',
             export_includes='daemon',
-            cxxflags=['-I/usr/include/python3.6m', '-Wno-unused-result',
-                         '-Wsign-compare', '-g', '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
-                         '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
-                         '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
-                         '-lpthread', '-ldl', '-lutil', '-lm',
-                         '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib', '-lpython3.6m',
-                         '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                         '-Wl,-Bsymbolic-functions',
-                         '-L/usr/local/lib']
+            cxxflags=['-I/usr/lib/python3.6', '-I/usr/include/python3.6m', '-I/usr/include/boost/python',
+                      '-Wno-unused-result', '-Wsign-compare', '-g',
+                      '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
+                      '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
+                      '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
+                      '-lpthread', '-ldl', '-lutil', '-lm',
+                      '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib', '-lpython3.6m',
+                      '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
+                      '-Wl,-Bsymbolic-functions', '-D/usr/local/lib']
         )
 
     bld.program(name='nfd',
