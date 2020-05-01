@@ -124,7 +124,7 @@ def configure(conf):
     if conf.env.WITH_BOOST_PYTHON:
         # boost_libs.append('python')
         # https://stackoverflow.com/a/15209182/2049763
-        conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
+        conf.check(compiler='cxx', lib=['boost_filesystem', 'boost_python'], uselib_store='BOOST_PYTHON')
         # conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
 
     conf.check_boost(lib=boost_libs, mt=True)
