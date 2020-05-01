@@ -37,6 +37,7 @@ BUGREPORT = 'https://redmine.named-data.net/projects/nfd'
 URL = 'https://named-data.net/doc/NFD/'
 GIT_TAG_PREFIX = 'NFD-'
 
+
 def options(opt):
     opt.load(['compiler_cxx', 'gnu_dirs'])
     opt.load(['default-compiler-flags', 'compiler-features',
@@ -64,6 +65,7 @@ def options(opt):
     nfdopt.add_option('--with-boost-python', action='store_true', default=False,
                       help='Build unit tests')
 
+
 PRIVILEGE_CHECK_CODE = '''
 #include <unistd.h>
 #include <grp.h>
@@ -88,6 +90,7 @@ int main()
   geteuid();
 }
 '''
+
 
 def configure(conf):
     conf.load(['compiler_cxx', 'gnu_dirs',
@@ -122,9 +125,22 @@ def configure(conf):
 
     if conf.env.WITH_BOOST_PYTHON:
         boost_libs.append('python')
+        # /usr/bin/python3.6-config --cflags --libs --ldflags
+        # https://waf.io/book/ https://groups.google.com/forum/#!topic/ns-3-users/mUicWdLn054
+        # https://www.nsnam.org/wiki/HOWTO_use_ns-3_with_other_libraries
+        # https://groups.google.com/forum/?nomobile=true#!msg/ns-3-users/VNz201J8BB0/pXpVVyRMyAUJ
+        conf.env.append_unique('CXXFLAGS',
+                              ['-I/usr/include/python3.6m', '-I/usr/include/python3.6m', '-Wno-unused-result',
+                               '-Wsign-compare', '-g', '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
+                               '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
+                               '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
+                               '-lpthread', '-ldl', '-lutil', '-lm',
+                               '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib -lpython3.6m',
+                               '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
+                               '-Wl,-Bsymbolic-functions'])
         # https://stackoverflow.com/a/15209182/2049763
         # conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
-        conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
+        # conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
 
     conf.check_boost(lib=boost_libs, mt=True)
     if conf.env.BOOST_VERSION_NUMBER < 105800:
@@ -156,6 +172,7 @@ def configure(conf):
     # will not appear in the config header, but will instead be passed directly to the
     # compiler on the command line.
     conf.write_config_header('core/config.hpp')
+
 
 def build(bld):
     versionhpp(bld)
@@ -203,7 +220,7 @@ def build(bld):
 
     if bld.env.WITH_BOOST_PYTHON:
         nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp')
-        nfd_objects.use += ' CXXFLAGS_EXTRA'
+        nfd_objects.use += ' CXXFLAGS'
         # 'BOOST_PYTHON'
 
     if bld.env.HAVE_LIBPCAP:
@@ -297,6 +314,7 @@ def doxygen(bld):
         doxyfile='docs/doxygen.conf',
         use='doxygen.conf version.hpp')
 
+
 def sphinx(bld):
     version(bld)
 
@@ -358,8 +376,10 @@ def version(ctx):
     except EnvironmentError as e:
         Logs.warn('%s is not writable (%s)' % (versionFile, e.strerror))
 
+
 def dist(ctx):
     version(ctx)
+
 
 def distcheck(ctx):
     version(ctx)
