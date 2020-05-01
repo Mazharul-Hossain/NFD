@@ -121,17 +121,19 @@ def configure(conf):
     if conf.env.WITH_TESTS or conf.env.WITH_OTHER_TESTS:
         boost_libs.append('unit_test_framework')
 
-    if conf.env.WITH_BOOST_PYTHON:
-        # boost_libs.append('python')
-        # https://stackoverflow.com/a/15209182/2049763
-        conf.check(compiler='cxx', lib=['boost_filesystem', 'boost_python'], uselib_store='BOOST_PYTHON')
-        # conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
-
     conf.check_boost(lib=boost_libs, mt=True)
     if conf.env.BOOST_VERSION_NUMBER < 105800:
         conf.fatal('Minimum required Boost version is 1.58.0\n'
                    'Please upgrade your distribution or manually install a newer version of Boost'
                    ' (https://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)')
+
+    if conf.env.WITH_BOOST_PYTHON:
+        # boost_libs.append('python')
+        # https://stackoverflow.com/a/15209182/2049763
+        conf.check_boost(lib=['filesystem', 'python'], mt=True, uselib_store='BOOST_PYTHON')
+        # conf.check(compiler='cxx', lib='boost_filesystem', uselib_store='BOOST_FILESYSTEM')
+        # conf.check(compiler='cxx', lib='boost_program_options', uselib_store='BOOST_PROGRAM_OPTIONS')
+        # conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
 
     conf.load('unix-socket')
 
@@ -217,15 +219,15 @@ def build(bld):
             use='core-objects daemon-objects BOOST_PYTHON',
             includes='daemon',
             export_includes='daemon',
-            cxxflags=['-I/usr/lib/python3.6', '-I/usr/include/python3.6m', '-I/usr/include/boost/python',
+            cxxflags=['-L/usr/lib/python3.6', '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib',
+                      '-L/usr/local/lib', '-I/usr/include/python3.6m', '-I/usr/include/boost/python',
                       '-Wno-unused-result', '-Wsign-compare', '-g',
                       '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
                       '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
                       '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
-                      '-lpthread', '-ldl', '-lutil', '-lm',
-                      '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib', '-lpython3.6m',
+                      '-lpthread', '-ldl', '-lutil', '-lm', '-lpython3.6m',
                       '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                      '-Wl,-Bsymbolic-functions', '-L/usr/local/lib']
+                      '-Wl,-Bsymbolic-functions']
         )
 
     bld.program(name='nfd',
