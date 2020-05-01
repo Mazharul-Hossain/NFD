@@ -214,7 +214,7 @@ def build(bld):
     # https://stackoverflow.com/q/5618406/2049763
     if bld.env.WITH_BOOST_PYTHON:
         bld.objects(
-            target='daemon-objects',
+            target='daemon-objects-ifs',
             source=bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp'),
             use='core-objects daemon-objects',
             includes='daemon',
@@ -233,7 +233,7 @@ def build(bld):
     bld.program(name='nfd',
                 target='bin/nfd',
                 source='daemon/main.cpp',
-                use='daemon-objects SYSTEMD')
+                use='daemon-objects SYSTEMD daemon-objects-ifs')
 
     bld.recurse('tools')
     bld.recurse('tests')
