@@ -122,9 +122,9 @@ def configure(conf):
         boost_libs.append('unit_test_framework')
 
     if conf.env.WITH_BOOST_PYTHON:
-        boost_libs.append('python')
+        # boost_libs.append('python')
         # https://stackoverflow.com/a/15209182/2049763
-        # conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
+        conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
         # conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
 
     conf.check_boost(lib=boost_libs, mt=True)
@@ -184,7 +184,7 @@ def build(bld):
                                        'daemon/face/pcap*.cpp',
                                        'daemon/face/unix*.cpp',
                                        'daemon/face/websocket*.cpp',
-                                       'daemon/fw/ifs-rl-strategy.cpp',
+                                       'daemon/fw/ifs-rl*.cpp',
                                        'daemon/main.cpp']),
         use='core-objects',
         includes='daemon',
@@ -215,7 +215,7 @@ def build(bld):
         bld.objects(
             target='daemon-objects-ifs',
             source=bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp'),
-            use='core-objects daemon-objects',
+            use='core-objects daemon-objects BOOST_PYTHON',
             includes='daemon',
             export_includes='daemon',
             cxxflags=['-I/usr/include/python3.6m', '-Wno-unused-result',
