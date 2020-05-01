@@ -184,8 +184,7 @@ def build(bld):
                                        'daemon/face/pcap*.cpp',
                                        'daemon/face/unix*.cpp',
                                        'daemon/face/websocket*.cpp',
-                                       'daemon/fw/ifs-rl-*.*',
-                                       'embedding/*',
+                                       'daemon/fw/ifs-rl-strategy.cpp',
                                        'daemon/main.cpp']),
         use='core-objects',
         includes='daemon',
@@ -215,7 +214,7 @@ def build(bld):
     if bld.env.WITH_BOOST_PYTHON:
         bld.objects(
             target='daemon-objects-ifs',
-            source=bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp'),
+            source=bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp'),
             use='core-objects daemon-objects',
             includes='daemon',
             export_includes='daemon',
