@@ -125,19 +125,6 @@ def configure(conf):
 
     if conf.env.WITH_BOOST_PYTHON:
         boost_libs.append('python')
-        # /usr/bin/python3.6-config --cflags --libs --ldflags
-        # https://waf.io/book/ https://groups.google.com/forum/#!topic/ns-3-users/mUicWdLn054
-        # https://www.nsnam.org/wiki/HOWTO_use_ns-3_with_other_libraries
-        # https://groups.google.com/forum/?nomobile=true#!msg/ns-3-users/VNz201J8BB0/pXpVVyRMyAUJ
-        conf.env.append_unique('CXXFLAGS',
-                              ['-I/usr/include/python3.6m', '-I/usr/include/python3.6m', '-Wno-unused-result',
-                               '-Wsign-compare', '-g', '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
-                               '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
-                               '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
-                               '-lpthread', '-ldl', '-lutil', '-lm',
-                               '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib -lpython3.6m',
-                               '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                               '-Wl,-Bsymbolic-functions'])
         # https://stackoverflow.com/a/15209182/2049763
         # conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
         # conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
@@ -220,55 +207,66 @@ def build(bld):
 
     if bld.env.WITH_BOOST_PYTHON:
         nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp')
-        nfd_objects.use += ' CXXFLAGS'
-        # 'BOOST_PYTHON'
+        # /usr/bin/python3.6-config --cflags --libs --ldflags
+        # https://waf.io/book/ https://groups.google.com/forum/#!topic/ns-3-users/mUicWdLn054
+        # https://www.nsnam.org/wiki/HOWTO_use_ns-3_with_other_libraries
+        # https://groups.google.com/forum/?nomobile=true#!msg/ns-3-users/VNz201J8BB0/pXpVVyRMyAUJ
+        nfd_objects.cxxflags = ['-I/usr/include/python3.6m', '-I/usr/include/python3.6m', '-Wno-unused-result',
+                                '-Wsign-compare', '-g', '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
+                                '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
+                                '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
+                                '-lpthread', '-ldl', '-lutil', '-lm',
+                                '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib -lpython3.6m',
+                                '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
+                                '-Wl,-Bsymbolic-functions'])
 
-    if bld.env.HAVE_LIBPCAP:
-        nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
+
+        if bld.env.HAVE_LIBPCAP:
+            nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
         nfd_objects.source += bld.path.ant_glob('daemon/face/pcap*.cpp')
         nfd_objects.use += ' CXXFLAGS'
 
-    bld.program(name='nfd',
-                target='bin/nfd',
-                source='daemon/main.cpp',
-                use='daemon-objects SYSTEMD')
+        bld.program(name='nfd',
+        target = 'bin/nfd',
+        source = 'daemon/main.cpp',
+        use = 'daemon-objects SYSTEMD')
 
-    bld.recurse('tools')
-    bld.recurse('tests')
+        bld.recurse('tools')
+        bld.recurse('tests')
 
-    bld(features='subst',
-        source='nfd.conf.sample.in',
-        target='nfd.conf.sample',
-        install_path='${SYSCONFDIR}/ndn',
-        IF_HAVE_LIBPCAP='' if bld.env.HAVE_LIBPCAP else '; ',
-        IF_HAVE_WEBSOCKET='' if bld.env.HAVE_WEBSOCKET else '; ',
-        UNIX_SOCKET_PATH='/run/nfd.sock' if Utils.unversioned_sys_platform() == 'linux' else '/var/run/nfd.sock')
+        bld(features='subst',
+    source = 'nfd.conf.sample.in',
+    target = 'nfd.conf.sample',
+    install_path = '${SYSCONFDIR}/ndn',
+    IF_HAVE_LIBPCAP = '' if bld.env.HAVE_LIBPCAP else '; ',
+    IF_HAVE_WEBSOCKET = '' if bld.env.HAVE_WEBSOCKET else '; ',
+    UNIX_SOCKET_PATH = '/run/nfd.sock' if Utils.unversioned_sys_platform() == 'linux' else '/var/run/nfd.sock')
 
     bld.install_files('${SYSCONFDIR}/ndn', 'autoconfig.conf.sample')
 
     if bld.env.HAVE_SYSTEMD:
         systemd_units = bld.path.ant_glob('systemd/*.in')
-        bld(features='subst',
-            name='systemd-units',
-            source=systemd_units,
-            target=[u.change_ext('') for u in systemd_units])
+    bld(features='subst',
+    name = 'systemd-units',
+    source = systemd_units,
+    target = [u.change_ext('') for u in systemd_units])
 
     if bld.env.SPHINX_BUILD:
         bld(features='sphinx',
-            name='manpages',
-            builder='man',
-            config='docs/conf.py',
-            outdir='docs/manpages',
-            source=bld.path.ant_glob('docs/manpages/*.rst'),
-            install_path='${MANDIR}',
-            version=VERSION_BASE,
-            release=VERSION)
-        bld.symlink_as('${MANDIR}/man1/nfdc-channel.1', 'nfdc-face.1')
-        bld.symlink_as('${MANDIR}/man1/nfdc-fib.1', 'nfdc-route.1')
-        bld.symlink_as('${MANDIR}/man1/nfdc-register.1', 'nfdc-route.1')
-        bld.symlink_as('${MANDIR}/man1/nfdc-unregister.1', 'nfdc-route.1')
-        bld.symlink_as('${MANDIR}/man1/nfdc-set-strategy.1', 'nfdc-strategy.1')
-        bld.symlink_as('${MANDIR}/man1/nfdc-unset-strategy.1', 'nfdc-strategy.1')
+    name = 'manpages',
+    builder = 'man',
+    config = 'docs/conf.py',
+    outdir = 'docs/manpages',
+    source = bld.path.ant_glob('docs/manpages/*.rst'),
+    install_path = '${MANDIR}',
+    version = VERSION_BASE,
+    release = VERSION)
+    bld.symlink_as('${MANDIR}/man1/nfdc-channel.1', 'nfdc-face.1')
+    bld.symlink_as('${MANDIR}/man1/nfdc-fib.1', 'nfdc-route.1')
+    bld.symlink_as('${MANDIR}/man1/nfdc-register.1', 'nfdc-route.1')
+    bld.symlink_as('${MANDIR}/man1/nfdc-unregister.1', 'nfdc-route.1')
+    bld.symlink_as('${MANDIR}/man1/nfdc-set-strategy.1', 'nfdc-strategy.1')
+    bld.symlink_as('${MANDIR}/man1/nfdc-unset-strategy.1', 'nfdc-strategy.1')
 
 
 def versionhpp(bld):
