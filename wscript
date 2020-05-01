@@ -218,7 +218,7 @@ def build(bld):
                                 '-lpthread', '-ldl', '-lutil', '-lm',
                                 '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib -lpython3.6m',
                                 '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                                '-Wl,-Bsymbolic-functions'])
+                                '-Wl,-Bsymbolic-functions']
 
 
         if bld.env.HAVE_LIBPCAP:
