@@ -124,6 +124,7 @@ def configure(conf):
         boost_libs.append('python')
         # https://stackoverflow.com/a/15209182/2049763
         # conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
+        conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
 
     conf.check_boost(lib=boost_libs, mt=True)
     if conf.env.BOOST_VERSION_NUMBER < 105800:
@@ -186,7 +187,7 @@ def build(bld):
                                        'daemon/fw/ifs-rl-*.*',
                                        'embedding/*',
                                        'daemon/main.cpp']),
-            use=['core-objects'],
+        use=['core-objects'],
         includes='daemon',
         export_includes='daemon')
 
@@ -202,12 +203,13 @@ def build(bld):
 
     if bld.env.WITH_BOOST_PYTHON:
         nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp')
-        # nfd_objects.use += ' BOOST_PYTHON'
+        nfd_objects.use += ' CXXFLAGS_EXTRA'
+        # 'BOOST_PYTHON'
 
     if bld.env.HAVE_LIBPCAP:
         nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
         nfd_objects.source += bld.path.ant_glob('daemon/face/pcap*.cpp')
-        nfd_objects.use += ' LIBPCAP'
+        nfd_objects.use += ' CXXFLAGS'
 
     bld.program(name='nfd',
                 target='bin/nfd',
@@ -251,6 +253,7 @@ def build(bld):
         bld.symlink_as('${MANDIR}/man1/nfdc-set-strategy.1', 'nfdc-strategy.1')
         bld.symlink_as('${MANDIR}/man1/nfdc-unset-strategy.1', 'nfdc-strategy.1')
 
+
 def versionhpp(bld):
     version(bld)
 
@@ -266,9 +269,11 @@ def versionhpp(bld):
         VERSION_MINOR=VERSION_SPLIT[1],
         VERSION_PATCH=VERSION_SPLIT[2])
 
+
 def docs(bld):
     from waflib import Options
     Options.commands = ['doxygen', 'sphinx'] + Options.commands
+
 
 def doxygen(bld):
     versionhpp(bld)
@@ -284,8 +289,8 @@ def doxygen(bld):
                 'docs/named_data_theme/named_data_footer-with-analytics.html'],
         VERSION=VERSION,
         HTML_FOOTER='../build/docs/named_data_theme/named_data_footer-with-analytics.html' \
-                        if os.getenv('GOOGLE_ANALYTICS', None) \
-                        else '../docs/named_data_theme/named_data_footer.html',
+            if os.getenv('GOOGLE_ANALYTICS', None) \
+            else '../docs/named_data_theme/named_data_footer.html',
         GOOGLE_ANALYTICS=os.getenv('GOOGLE_ANALYTICS', ''))
 
     bld(features='doxygen',
@@ -304,6 +309,7 @@ def sphinx(bld):
         source=bld.path.ant_glob('docs/**/*.rst'),
         version=VERSION_BASE,
         release=VERSION)
+
 
 def version(ctx):
     # don't execute more than once
