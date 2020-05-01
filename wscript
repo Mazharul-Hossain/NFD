@@ -64,11 +64,6 @@ def options(opt):
     nfdopt.add_option('--with-boost-python', action='store_true', default=False,
                       help='Build unit tests')
 
-    py_version = '%d%d' % (sys.version_info[0], sys.version_info[1])
-    nfdopt.add_option('--boost-python', type='string',
-                   default=py_version, dest='boost_python',
-                   help='select the lib python with this version (default: %s)' % py_version)
-
 PRIVILEGE_CHECK_CODE = '''
 #include <unistd.h>
 #include <grp.h>
@@ -132,7 +127,6 @@ def configure(conf):
                    ' (https://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)')
     # https://stackoverflow.com/a/15209182/2049763
     conf.check(compiler='cxx', lib='boost_python', uselib_store='BOOST_PYTHON')
-
 
     conf.load('unix-socket')
 
