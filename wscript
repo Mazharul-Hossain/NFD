@@ -37,7 +37,6 @@ BUGREPORT = 'https://redmine.named-data.net/projects/nfd'
 URL = 'https://named-data.net/doc/NFD/'
 GIT_TAG_PREFIX = 'NFD-'
 
-
 def options(opt):
     opt.load(['compiler_cxx', 'gnu_dirs'])
     opt.load(['default-compiler-flags', 'compiler-features',
@@ -90,7 +89,6 @@ int main()
   geteuid();
 }
 '''
-
 
 def configure(conf):
     conf.load(['compiler_cxx', 'gnu_dirs',
@@ -160,7 +158,6 @@ def configure(conf):
     # compiler on the command line.
     conf.write_config_header('core/config.hpp')
 
-
 def build(bld):
     versionhpp(bld)
 
@@ -191,9 +188,14 @@ def build(bld):
                                        'daemon/fw/ifs-rl-*.*',
                                        'embedding/*',
                                        'daemon/main.cpp']),
-        use=['core-objects'],
+        use='core-objects',
         includes='daemon',
         export_includes='daemon')
+
+    if bld.env.HAVE_LIBPCAP:
+        nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
+        nfd_objects.source += bld.path.ant_glob('daemon/face/pcap*.cpp')
+        nfd_objects.use += ' LIBPCAP'
 
     if bld.env.HAVE_UNIX_SOCKETS:
         nfd_objects.source += bld.path.ant_glob('daemon/face/unix*.cpp')
@@ -219,55 +221,47 @@ def build(bld):
                                 '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib -lpython3.6m',
                                 '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
                                 '-Wl,-Bsymbolic-functions']
+    bld.program(name='nfd',
+                target='bin/nfd',
+                source='daemon/main.cpp',
+                use='daemon-objects SYSTEMD')
 
+    bld.recurse('tools')
+    bld.recurse('tests')
 
-        if bld.env.HAVE_LIBPCAP:
-            nfd_objects.source += bld.path.ant_glob('daemon/face/*ethernet*.cpp')
-        nfd_objects.source += bld.path.ant_glob('daemon/face/pcap*.cpp')
-        nfd_objects.use += ' CXXFLAGS'
-
-        bld.program(name='nfd',
-        target = 'bin/nfd',
-        source = 'daemon/main.cpp',
-        use = 'daemon-objects SYSTEMD')
-
-        bld.recurse('tools')
-        bld.recurse('tests')
-
-        bld(features='subst',
-    source = 'nfd.conf.sample.in',
-    target = 'nfd.conf.sample',
-    install_path = '${SYSCONFDIR}/ndn',
-    IF_HAVE_LIBPCAP = '' if bld.env.HAVE_LIBPCAP else '; ',
-    IF_HAVE_WEBSOCKET = '' if bld.env.HAVE_WEBSOCKET else '; ',
-    UNIX_SOCKET_PATH = '/run/nfd.sock' if Utils.unversioned_sys_platform() == 'linux' else '/var/run/nfd.sock')
+    bld(features='subst',
+        source='nfd.conf.sample.in',
+        target='nfd.conf.sample',
+        install_path='${SYSCONFDIR}/ndn',
+        IF_HAVE_LIBPCAP='' if bld.env.HAVE_LIBPCAP else '; ',
+        IF_HAVE_WEBSOCKET='' if bld.env.HAVE_WEBSOCKET else '; ',
+        UNIX_SOCKET_PATH='/run/nfd.sock' if Utils.unversioned_sys_platform() == 'linux' else '/var/run/nfd.sock')
 
     bld.install_files('${SYSCONFDIR}/ndn', 'autoconfig.conf.sample')
 
     if bld.env.HAVE_SYSTEMD:
         systemd_units = bld.path.ant_glob('systemd/*.in')
-    bld(features='subst',
-    name = 'systemd-units',
-    source = systemd_units,
-    target = [u.change_ext('') for u in systemd_units])
+        bld(features='subst',
+            name='systemd-units',
+            source=systemd_units,
+            target=[u.change_ext('') for u in systemd_units])
 
     if bld.env.SPHINX_BUILD:
         bld(features='sphinx',
-    name = 'manpages',
-    builder = 'man',
-    config = 'docs/conf.py',
-    outdir = 'docs/manpages',
-    source = bld.path.ant_glob('docs/manpages/*.rst'),
-    install_path = '${MANDIR}',
-    version = VERSION_BASE,
-    release = VERSION)
-    bld.symlink_as('${MANDIR}/man1/nfdc-channel.1', 'nfdc-face.1')
-    bld.symlink_as('${MANDIR}/man1/nfdc-fib.1', 'nfdc-route.1')
-    bld.symlink_as('${MANDIR}/man1/nfdc-register.1', 'nfdc-route.1')
-    bld.symlink_as('${MANDIR}/man1/nfdc-unregister.1', 'nfdc-route.1')
-    bld.symlink_as('${MANDIR}/man1/nfdc-set-strategy.1', 'nfdc-strategy.1')
-    bld.symlink_as('${MANDIR}/man1/nfdc-unset-strategy.1', 'nfdc-strategy.1')
-
+            name='manpages',
+            builder='man',
+            config='docs/conf.py',
+            outdir='docs/manpages',
+            source=bld.path.ant_glob('docs/manpages/*.rst'),
+            install_path='${MANDIR}',
+            version=VERSION_BASE,
+            release=VERSION)
+        bld.symlink_as('${MANDIR}/man1/nfdc-channel.1', 'nfdc-face.1')
+        bld.symlink_as('${MANDIR}/man1/nfdc-fib.1', 'nfdc-route.1')
+        bld.symlink_as('${MANDIR}/man1/nfdc-register.1', 'nfdc-route.1')
+        bld.symlink_as('${MANDIR}/man1/nfdc-unregister.1', 'nfdc-route.1')
+        bld.symlink_as('${MANDIR}/man1/nfdc-set-strategy.1', 'nfdc-strategy.1')
+        bld.symlink_as('${MANDIR}/man1/nfdc-unset-strategy.1', 'nfdc-strategy.1')
 
 def versionhpp(bld):
     version(bld)
@@ -284,11 +278,9 @@ def versionhpp(bld):
         VERSION_MINOR=VERSION_SPLIT[1],
         VERSION_PATCH=VERSION_SPLIT[2])
 
-
 def docs(bld):
     from waflib import Options
     Options.commands = ['doxygen', 'sphinx'] + Options.commands
-
 
 def doxygen(bld):
     versionhpp(bld)
@@ -312,7 +304,6 @@ def doxygen(bld):
         doxyfile='docs/doxygen.conf',
         use='doxygen.conf version.hpp')
 
-
 def sphinx(bld):
     version(bld)
 
@@ -325,7 +316,6 @@ def sphinx(bld):
         source=bld.path.ant_glob('docs/**/*.rst'),
         version=VERSION_BASE,
         release=VERSION)
-
 
 def version(ctx):
     # don't execute more than once
@@ -374,10 +364,8 @@ def version(ctx):
     except EnvironmentError as e:
         Logs.warn('%s is not writable (%s)' % (versionFile, e.strerror))
 
-
 def dist(ctx):
     version(ctx)
-
 
 def distcheck(ctx):
     version(ctx)
