@@ -177,29 +177,6 @@ def build(bld):
         export_includes='.',
         headers='core/common.hpp')
 
-    if bld.env.WITH_BOOST_PYTHON:
-        ifs_objects = bld.objects(
-            target='daemon-objects',
-            source=bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp'),
-            use='core-objects',
-            includes='daemon',
-            export_includes='daemon')
-        # /usr/bin/python3.6-config --cflags --libs --ldflags
-        # https://waf.io/book/ https://groups.google.com/forum/#!topic/ns-3-users/mUicWdLn054
-        # https://www.nsnam.org/wiki/HOWTO_use_ns-3_with_other_libraries
-        # https://groups.google.com/forum/?nomobile=true#!msg/ns-3-users/VNz201J8BB0/pXpVVyRMyAUJ
-        # https://stackoverflow.com/q/5618406/2049763
-        ifs_objects.cxxflags += ['-I/usr/include/python3.6m', '-Wno-unused-result',
-                                 '-Wsign-compare', '-g', '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
-                                 '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
-                                 '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
-                                 '-lpthread', '-ldl', '-lutil', '-lm',
-                                 '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib', '-lpython3.6m',
-                                 '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                                 '-Wl,-Bsymbolic-functions',
-                                 '-L/usr/local/lib'
-                                 ]
-
     nfd_objects = bld.objects(
         target='daemon-objects',
         source=bld.path.ant_glob('daemon/**/*.cpp',
@@ -228,6 +205,30 @@ def build(bld):
 
     if bld.env.WITH_OTHER_TESTS:
         nfd_objects.source += bld.path.ant_glob('tests/other/fw/*.cpp')
+
+
+    # /usr/bin/python3.6-config --cflags --libs --ldflags
+    # https://waf.io/book/ https://groups.google.com/forum/#!topic/ns-3-users/mUicWdLn054
+    # https://www.nsnam.org/wiki/HOWTO_use_ns-3_with_other_libraries
+    # https://groups.google.com/forum/?nomobile=true#!msg/ns-3-users/VNz201J8BB0/pXpVVyRMyAUJ
+    # https://stackoverflow.com/q/5618406/2049763
+    if bld.env.WITH_BOOST_PYTHON:
+        bld.objects(
+            target='daemon-objects',
+            source=bld.path.ant_glob('daemon/fw/ifs-rl-*.cpp'),
+            use='core-objects daemon-objects',
+            includes='daemon',
+            export_includes='daemon',
+            cxxflags=['-I/usr/include/python3.6m', '-Wno-unused-result',
+                         '-Wsign-compare', '-g', '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
+                         '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
+                         '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
+                         '-lpthread', '-ldl', '-lutil', '-lm',
+                         '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib', '-lpython3.6m',
+                         '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
+                         '-Wl,-Bsymbolic-functions',
+                         '-L/usr/local/lib']
+        )
 
     bld.program(name='nfd',
                 target='bin/nfd',
