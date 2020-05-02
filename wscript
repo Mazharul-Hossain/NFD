@@ -232,19 +232,19 @@ def build(bld):
     # https://groups.google.com/forum/?nomobile=true#!msg/ns-3-users/VNz201J8BB0/pXpVVyRMyAUJ
     # https://stackoverflow.com/q/5618406/2049763
     if bld.env.WITH_BOOST_PYTHON:
-        nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp')
-        nfd_objects.use += ' BOOST_PYTHON MY_PYTHON'
-        # bld.objects(
-        #     target='daemon-objects-ifs',
-        #     source=bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp'),
-        #     use='core-objects daemon-objects BOOST_PYTHON MY_PYTHON',
-        #     includes='daemon',
-        #     export_includes='daemon')
+        # nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp')
+        # nfd_objects.use += ' BOOST_PYTHON MY_PYTHON'
+        bld.objects(
+            target='daemon-objects-ifs',
+            source=bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp'),
+            use='core-objects daemon-objects BOOST_PYTHON MY_PYTHON',
+            includes='daemon',
+            export_includes='daemon')
 
     bld.program(name='nfd',
                 target='bin/nfd',
                 source='daemon/main.cpp',
-                use='daemon-objects SYSTEMD')
+                use='daemon-objects SYSTEMD daemon-objects-ifs')
 
     bld.recurse('tools')
     bld.recurse('tests')
