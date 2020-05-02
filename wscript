@@ -37,6 +37,7 @@ BUGREPORT = 'https://redmine.named-data.net/projects/nfd'
 URL = 'https://named-data.net/doc/NFD/'
 GIT_TAG_PREFIX = 'NFD-'
 
+
 def options(opt):
     opt.load(['compiler_cxx', 'gnu_dirs'])
     opt.load(['default-compiler-flags', 'compiler-features',
@@ -90,6 +91,7 @@ int main()
 }
 '''
 
+
 def configure(conf):
     conf.load(['compiler_cxx', 'gnu_dirs',
                'default-compiler-flags', 'compiler-features',
@@ -130,10 +132,26 @@ def configure(conf):
     if conf.env.WITH_BOOST_PYTHON:
         # boost_libs.append('python')
         # https://stackoverflow.com/a/15209182/2049763
-        conf.check_boost(lib=['filesystem', 'python'], mt=True, uselib_store='BOOST_PYTHON')
+        conf.check_boost(lib=['python'], mt=True, uselib_store='BOOST_PYTHON')
         # conf.check(compiler='cxx', lib='boost_filesystem', uselib_store='BOOST_FILESYSTEM')
         # conf.check(compiler='cxx', lib='boost_program_options', uselib_store='BOOST_PROGRAM_OPTIONS')
         # conf.env.CXXFLAGS_EXTRA = ["/usr/bin/python3.6-config --cflags"]
+
+        # https://stackoverflow.com/a/15497844/2049763
+        conf.env.LIBPATH_MY_PYTHON = ['/usr/local/lib', '/usr/lib', '/usr/lib/python3.6',
+                                      '/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu']
+        conf.env.INCLUDES_MY_PYTHON = ['/usr/local/include', '/usr/include/boost/python', '/usr/include/python3.6m']
+
+        my_cxx_flags = ['-Wno-unused-result', '-Wsign-compare', '-g',
+                        '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
+                        '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
+                        '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall',
+                        '-Xlinker', '-export-dynamic', '-Wl,-O1',
+                        '-Wl,-Bsymbolic-functions']
+        my_python_lib = ['python3.6m', 'pthread', 'dl', 'util', 'm', ]
+
+        # use MYLIB in your check
+        conf.check_cxx(lib=my_python_lib, use='MY_PYTHON', cxxflags=my_cxx_flags)
 
     conf.load('unix-socket')
 
@@ -158,6 +176,7 @@ def configure(conf):
     # will not appear in the config header, but will instead be passed directly to the
     # compiler on the command line.
     conf.write_config_header('core/config.hpp')
+
 
 def build(bld):
     versionhpp(bld)
@@ -216,18 +235,9 @@ def build(bld):
         bld.objects(
             target='daemon-objects-ifs',
             source=bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp'),
-            use='core-objects daemon-objects BOOST_PYTHON',
+            use='core-objects daemon-objects BOOST_PYTHON MY_PYTHON',
             includes='daemon',
-            export_includes='daemon',
-            cxxflags=['-L/usr/lib/python3.6', '-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu', '-L/usr/lib',
-                      '-L/usr/local/lib', '-I/usr/include/python3.6m', '-I/usr/include/boost/python',
-                      '-Wno-unused-result', '-Wsign-compare', '-g',
-                      '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
-                      '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
-                      '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall', '-lpython3.6m',
-                      '-lpthread', '-ldl', '-lutil', '-lm', '-lpython3.6m',
-                      '-lpthread', '-ldl', '-lutil', '-lm', '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                      '-Wl,-Bsymbolic-functions']
+            export_includes='daemon'
         )
 
     bld.program(name='nfd',
@@ -272,6 +282,7 @@ def build(bld):
         bld.symlink_as('${MANDIR}/man1/nfdc-set-strategy.1', 'nfdc-strategy.1')
         bld.symlink_as('${MANDIR}/man1/nfdc-unset-strategy.1', 'nfdc-strategy.1')
 
+
 def versionhpp(bld):
     version(bld)
 
@@ -287,9 +298,11 @@ def versionhpp(bld):
         VERSION_MINOR=VERSION_SPLIT[1],
         VERSION_PATCH=VERSION_SPLIT[2])
 
+
 def docs(bld):
     from waflib import Options
     Options.commands = ['doxygen', 'sphinx'] + Options.commands
+
 
 def doxygen(bld):
     versionhpp(bld)
@@ -313,6 +326,7 @@ def doxygen(bld):
         doxyfile='docs/doxygen.conf',
         use='doxygen.conf version.hpp')
 
+
 def sphinx(bld):
     version(bld)
 
@@ -325,6 +339,7 @@ def sphinx(bld):
         source=bld.path.ant_glob('docs/**/*.rst'),
         version=VERSION_BASE,
         release=VERSION)
+
 
 def version(ctx):
     # don't execute more than once
@@ -373,8 +388,10 @@ def version(ctx):
     except EnvironmentError as e:
         Logs.warn('%s is not writable (%s)' % (versionFile, e.strerror))
 
+
 def dist(ctx):
     version(ctx)
+
 
 def distcheck(ctx):
     version(ctx)
