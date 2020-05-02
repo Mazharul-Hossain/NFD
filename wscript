@@ -145,13 +145,13 @@ def configure(conf):
         # use MYLIB in your check
         conf.check_cxx(msg='Checking if boost-python is supported',
                        lib=['python3.6m', 'pthread', 'dl', 'util', 'm'],
-                       use='MY_PYTHON', uselib_store='MY_PYTHON',
-                       cxxflags=['-Wno-unused-result', '-Wsign-compare', '-g',
-                                 '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
-                                 '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
-                                 '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall',
-                                 '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                                 '-Wl,-Bsymbolic-functions'])
+                       use='MY_PYTHON', uselib_store='MY_PYTHON', cxxflags=[])
+                       # cxxflags=['-Wno-unused-result', '-Wsign-compare', '-g',
+                       #           '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
+                       #           '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
+                       #           '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall',
+                       #           '-Xlinker', '-export-dynamic', '-Wl,-O1',
+                       #           '-Wl,-Bsymbolic-functions'])
 
     conf.load('unix-socket')
 

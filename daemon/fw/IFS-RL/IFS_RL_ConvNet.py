@@ -1,9 +1,11 @@
 import tensorflow as tf
 
-class OFS_RL_ConvNetv1:
 
-    def __init__(self, X: tf.placeholder, num_classes: int=48, frame_size: int=1, learning_rate=0.001) -> None:
-        self.X = tf.reshape(X, [-1, 128, frame_size])
+class IFS_RL_ConvNetv1:
+
+    def __init__(self, X: tf.placeholder, num_classes: int = 48, learning_rate=0.001) -> None:
+        self.X = tf.reshape(X, [-1, 128])
+        self.is_training = tf.placeholder(tf.bool, name='is_training')
 
         self.num_classes = num_classes
         self.learning_rate = learning_rate
@@ -21,7 +23,8 @@ class OFS_RL_ConvNetv1:
 
         net = tf.layers.dense(pool3_flat, 512)
         net = tf.layers.dense(net, 128)
-        net = tf.layers.dense(net, self.num_classes)
+        net = tf.layers.dense(net, self.num_classes,
+                              tf.identity if self.is_training else tf.nn.softmax)
 
         self.inference = net
         self.predict = tf.argmax(self.inference, 1)

@@ -211,6 +211,17 @@ namespace nfd {
                     NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress
                                                       << " rtt=" << faceInfo->getLastRtt() << " srtt="
                                                       << faceInfo->getSrtt());
+                    // needs change !!!
+                    const &name_prefix = pitEntry->getName();
+                    namespace python = boost::python;
+                    try {
+                        object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix, ingress.face,
+                                                                                              time::steady_clock::now() -
+                                                                                              outRecord->getLastRenewed());
+                    }
+                    catch (const python::error_already_set &) {
+                        PyErr_Print();
+                    }
                 }
 
                 // Extend lifetime for measurements associated with Face
@@ -309,43 +320,69 @@ namespace nfd {
                                                           bool isInterestNew) {
                 std::set <FaceStats, FaceStatsCompare> rankedFaces;
 
+                const &name_prefix = fibEntry.getPrefix();
+                namespace python = boost::python;
+                try {
+                    object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
+                    str prefix_face_status = extract<str>(result);
+                    if (prefix_face_status == "RESULT_READY") {
+                        object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
+                        Face best_prefix_face = extract<Face>(result);
+                    }
+                }
+                catch (const python::error_already_set &) {
+                    PyErr_Print();
+                    str prefix_face_status = "NO_INFORMATION";
+                }
+
                 auto now = time::steady_clock::now();
                 for (const auto &nh : fibEntry.getNextHops()) {
                     if (!isNextHopEligible(inFace, interest, nh, pitEntry, !isInterestNew, now)) {
                         continue;
                     }
-
+                    if (prefix_face_status == "RESULT_READY") {
+                        if (best_prefix_face == nh.getFace())
+                            return nh.getFace()
+                    }
                     FaceInfo *info = m_measurements.getFaceInfo(fibEntry, interest, nh.getFace().getId());
+                    try {
+                        if (info == nullptr) {
+                            model_main_class.attr("face_info_for_ranking")(name_prefix, &nh.getFace(),
+                                                                           FaceInfo::RTT_NO_MEASUREMENT,
+                                                                           FaceInfo::RTT_NO_MEASUREMENT,
+                                                                           nh.getCost(), "null");
+                        } else {
+                            model_main_class.attr("face_info_for_ranking")(name_prefix, &nh.getFace(),
+                                                                           info->getLastRtt(),
+                                                                           info->getSrtt(), nh.getCost(), "");
+                        }
+                    }
+                    catch (const python::error_already_set &) {
+                        PyErr_Print();
+                    }
                     if (info == nullptr) {
                         rankedFaces.insert({&nh.getFace(), FaceInfo::RTT_NO_MEASUREMENT,
                                             FaceInfo::RTT_NO_MEASUREMENT, nh.getCost()});
-
-//                        namespace python = boost::python;
-//                        try {
-//                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), FaceInfo::RTT_NO_MEASUREMENT,
-//                                                                           FaceInfo::RTT_NO_MEASUREMENT, nh.getCost(),
-//                                                                           "null");
-//                        }
-//                        catch (const python::error_already_set &) {
-//                            PyErr_Print();
-//                        }
                     } else {
                         rankedFaces.insert({&nh.getFace(), info->getLastRtt(), info->getSrtt(), nh.getCost()});
-
-//                        namespace python = boost::python;
-//                        try {
-//                            model_main_class.attr("face_info_for_ranking")(&nh.getFace(), info->getLastRtt(),
-//                                                                           info->getSrtt(), nh.getCost(), "");
-//                        }
-//                        catch (const python::error_already_set &) {
-//                            PyErr_Print();
-//                        }
                     }
                 }
-
+                if (prefix_face_status == "READY_FOR_CALCULATION") {
+                    try {
+                        object result = model_main_class.attr("calculate_prefix_face_result")(name_prefix);
+                        Face best_prefix_face = extract<Face>(result);
+                        if (best_prefix_face != nullptr) {
+                            return best_prefix_face
+                        }
+                    }
+                    catch (const python::error_already_set &) {
+                        PyErr_Print();
+                    }
+                }
                 auto it = rankedFaces.begin();
                 return it != rankedFaces.end() ? it->face : nullptr;
             }
+            // ######################################################################################
 
             void IFSRLStrategy::onTimeout(const Name &interestName, FaceId faceId) {
                 NamespaceInfo *namespaceInfo = m_measurements.getNamespaceInfo(interestName);
@@ -373,6 +410,16 @@ namespace nfd {
                 } else {
                     NFD_LOG_TRACE(interestName << " face=" << faceId << " timeout-count=" << nTimeouts);
                     faceInfo.recordTimeout(interestName);
+
+                    // needs change !!!
+                    const &name_prefix = interestName;
+                    namespace python = boost::python;
+                    try {
+                        object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix, faceId, 100);
+                    }
+                    catch (const python::error_already_set &) {
+                        PyErr_Print();
+                    }
                 }
             }
 
@@ -382,7 +429,6 @@ namespace nfd {
                 this->sendNack(pitEntry, ingress, nackHeader);
                 this->rejectPendingInterest(pitEntry);
             }
-
         } // namespace asf
     } // namespace fw
 } // namespace nfd
