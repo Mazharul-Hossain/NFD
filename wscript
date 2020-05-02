@@ -142,16 +142,16 @@ def configure(conf):
                                       '/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu']
         conf.env.INCLUDES_MY_PYTHON = ['/usr/local/include', '/usr/include/boost/python', '/usr/include/python3.6m']
 
-        my_cxx_flags = ['-Wno-unused-result', '-Wsign-compare', '-g',
-                        '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
-                        '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
-                        '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall',
-                        '-Xlinker', '-export-dynamic', '-Wl,-O1',
-                        '-Wl,-Bsymbolic-functions']
-        my_python_lib = ['python3.6m', 'pthread', 'dl', 'util', 'm', ]
-
         # use MYLIB in your check
-        conf.check_cxx(lib=my_python_lib, use='MY_PYTHON', cxxflags=my_cxx_flags)
+        conf.check_cxx(msg='Checking if boost-python is supported',
+                       lib=['python3.6m', 'pthread', 'dl', 'util', 'm'],
+                       use='MY_PYTHON', uselib_store='MY_PYTHON',
+                       cxxflags=['-Wno-unused-result', '-Wsign-compare', '-g',
+                                 '-fdebug-prefix-map=/build/python3.6-PHwBoS/python3.6-3.6.9=.',
+                                 '-specs=/usr/share/dpkg/no-pie-compile.specs', '-fstack-protector', '-Wformat',
+                                 '-Werror=format-security', '-DNDEBUG', '-g', '-fwrapv', '-O3', '-Wall',
+                                 '-Xlinker', '-export-dynamic', '-Wl,-O1',
+                                 '-Wl,-Bsymbolic-functions'])
 
     conf.load('unix-socket')
 
@@ -232,18 +232,19 @@ def build(bld):
     # https://groups.google.com/forum/?nomobile=true#!msg/ns-3-users/VNz201J8BB0/pXpVVyRMyAUJ
     # https://stackoverflow.com/q/5618406/2049763
     if bld.env.WITH_BOOST_PYTHON:
-        bld.objects(
-            target='daemon-objects-ifs',
-            source=bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp'),
-            use='core-objects daemon-objects BOOST_PYTHON MY_PYTHON',
-            includes='daemon',
-            export_includes='daemon'
-        )
+        nfd_objects.source += bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp')
+        nfd_objects.use += ' BOOST_PYTHON MY_PYTHON'
+        # bld.objects(
+        #     target='daemon-objects-ifs',
+        #     source=bld.path.ant_glob('daemon/fw/ifs-rl-strategy.cpp'),
+        #     use='core-objects daemon-objects BOOST_PYTHON MY_PYTHON',
+        #     includes='daemon',
+        #     export_includes='daemon')
 
     bld.program(name='nfd',
                 target='bin/nfd',
                 source='daemon/main.cpp',
-                use='daemon-objects SYSTEMD daemon-objects-ifs')
+                use='daemon-objects SYSTEMD')
 
     bld.recurse('tools')
     bld.recurse('tests')
