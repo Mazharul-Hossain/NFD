@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/**
- * Copyright (c) 2014-2017,  Regents of the University of California,
+/*
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -40,7 +40,7 @@ namespace face {
 /**
  * \brief Class implementing WebSocket-based channel to create faces
  */
-class WebSocketChannel : public Channel
+class WebSocketChannel final : public Channel
 {
 public:
   /**
@@ -54,13 +54,13 @@ public:
   WebSocketChannel(const websocket::Endpoint& localEndpoint);
 
   bool
-  isListening() const override
+  isListening() const final
   {
     return m_server.is_listening();
   }
 
   size_t
-  size() const override
+  size() const final
   {
     return m_channelFaces.size();
   }
@@ -74,7 +74,7 @@ public:
   void
   listen(const FaceCreatedCallback& onFaceCreated);
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   /** \pre listen hasn't been invoked
    */
   void

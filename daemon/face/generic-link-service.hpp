@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -93,8 +93,8 @@ public:
 /** \brief GenericLinkService is a LinkService that implements the NDNLPv2 protocol
  *  \sa https://redmine.named-data.net/projects/nfd/wiki/NDNLPv2
  */
-class GenericLinkService FINAL_UNLESS_WITH_TESTS : public LinkService
-                                                 , protected virtual GenericLinkServiceCounters
+class GenericLinkService NFD_FINAL_UNLESS_WITH_TESTS : public LinkService
+                                                     , protected virtual GenericLinkServiceCounters
 {
 public:
   /** \brief Options that control the behavior of GenericLinkService
@@ -184,10 +184,10 @@ public:
   setOptions(const Options& options);
 
   const Counters&
-  getCounters() const OVERRIDE_WITH_TESTS_ELSE_FINAL;
+  getCounters() const NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
   ssize_t
-  getEffectiveMtu() const OVERRIDE_WITH_TESTS_ELSE_FINAL;
+  getEffectiveMtu() const NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
   /** \brief Whether MTU can be overridden to the specified value
    *
@@ -196,31 +196,25 @@ public:
   bool
   canOverrideMtuTo(ssize_t mtu) const;
 
-PROTECTED_WITH_TESTS_ELSE_PRIVATE: // send path
+NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE: // send path
   /** \brief request an IDLE packet to transmit pending service fields
    */
   void
-  requestIdlePacket(const EndpointId& endpointId);
+  requestIdlePacket();
 
-  /** \brief send an LpPacket to \p endpointId
+  /** \brief send an LpPacket
    */
   void
-  sendLpPacket(lp::Packet&& pkt, const EndpointId& endpointId);
+  sendLpPacket(lp::Packet&& pkt);
 
-  /** \brief send Interest
-   */
   void
-  doSendInterest(const Interest& interest, const EndpointId& endpointId) OVERRIDE_WITH_TESTS_ELSE_FINAL;
+  doSendInterest(const Interest& interest) NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
-  /** \brief send Data
-   */
   void
-  doSendData(const Data& data, const EndpointId& endpointId) OVERRIDE_WITH_TESTS_ELSE_FINAL;
+  doSendData(const Data& data) NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
-  /** \brief send Nack
-   */
   void
-  doSendNack(const ndn::lp::Nack& nack, const EndpointId& endpointId) OVERRIDE_WITH_TESTS_ELSE_FINAL;
+  doSendNack(const ndn::lp::Nack& nack) NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
   /** \brief assign consecutive sequence numbers to LpPackets
    */
@@ -237,11 +231,10 @@ private: // send path
 
   /** \brief send a complete network layer packet
    *  \param pkt LpPacket containing a complete network layer packet
-   *  \param endpointId destination endpoint to which LpPacket will be sent
    *  \param isInterest whether the network layer packet is an Interest
    */
   void
-  sendNetPacket(lp::Packet&& pkt, const EndpointId& endpointId, bool isInterest);
+  sendNetPacket(lp::Packet&& pkt, bool isInterest);
 
   /** \brief if the send queue is found to be congested, add a congestion mark to the packet
    *         according to CoDel
@@ -251,10 +244,8 @@ private: // send path
   checkCongestionLevel(lp::Packet& pkt);
 
 private: // receive path
-  /** \brief receive Packet from Transport
-   */
   void
-  doReceivePacket(const Block& packet, const EndpointId& endpoint) OVERRIDE_WITH_TESTS_ELSE_FINAL;
+  doReceivePacket(const Block& packet, const EndpointId& endpoint) NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
   /** \brief decode incoming network-layer packet
    *  \param netPkt reassembled network-layer packet
@@ -306,14 +297,14 @@ private: // receive path
   void
   decodeNack(const Block& netPkt, const lp::Packet& firstPkt, const EndpointId& endpointId);
 
-PROTECTED_WITH_TESTS_ELSE_PRIVATE:
+NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE:
   Options m_options;
   LpFragmenter m_fragmenter;
   LpReassembler m_reassembler;
   LpReliability m_reliability;
   lp::Sequence m_lastSeqNo;
 
-PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   /// Time to mark next packet due to send queue congestion
   time::steady_clock::TimePoint m_nextMarkTime;
   /// number of marked packets in the current incident of congestion

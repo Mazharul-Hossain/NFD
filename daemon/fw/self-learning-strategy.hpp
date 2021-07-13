@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,14 +33,12 @@
 namespace nfd {
 namespace fw {
 
-/** \brief Self-learning strategy
+/** \brief Self-learning forwarding strategy
  *
  *  This strategy first broadcasts Interest to learn a single path towards data,
- *  then unicasts subsequent Interests along the learned path
+ *  then unicasts subsequent Interests along the learned path.
  *
  *  \see https://redmine.named-data.net/attachments/864/Self-learning-strategy-v1.pdf
- *
- *  \note This strategy is not EndpointId-aware
  */
 class SelfLearningStrategy : public Strategy
 {
@@ -52,7 +50,7 @@ public:
   getStrategyName();
 
   /// StrategyInfo on pit::InRecord
-  class InRecordInfo : public StrategyInfo
+  class InRecordInfo final : public StrategyInfo
   {
   public:
     static constexpr int
@@ -66,7 +64,7 @@ public:
   };
 
   /// StrategyInfo on pit::OutRecord
-  class OutRecordInfo : public StrategyInfo
+  class OutRecordInfo final : public StrategyInfo
   {
   public:
     static constexpr int
@@ -81,19 +79,18 @@ public:
 
 public: // triggers
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
-                   const FaceEndpoint& ingress, const Data& data) override;
+  afterReceiveData(const Data& data, const FaceEndpoint& ingress,
+                   const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
+  afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                    const shared_ptr<pit::Entry>& pitEntry) override;
 
 private: // operations
-
   /** \brief Send an Interest to all possible faces
    *
    *  This function is invoked when the forwarder has no matching FIB entries for

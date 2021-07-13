@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -52,20 +52,20 @@ AccessStrategy::AccessStrategy(Forwarder& forwarder, const Name& name)
 const Name&
 AccessStrategy::getStrategyName()
 {
-  static Name strategyName("/localhost/nfd/strategy/access/%FD%01");
+  static const auto strategyName = Name("/localhost/nfd/strategy/access").appendVersion(1);
   return strategyName;
 }
 
 void
-AccessStrategy::afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+AccessStrategy::afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                                      const shared_ptr<pit::Entry>& pitEntry)
 {
   auto suppressResult = m_retxSuppression.decidePerPitEntry(*pitEntry);
   switch (suppressResult) {
   case RetxSuppressionResult::NEW:
-    return afterReceiveNewInterest(ingress, interest, pitEntry);
+    return afterReceiveNewInterest(interest, ingress, pitEntry);
   case RetxSuppressionResult::FORWARD:
-    return afterReceiveRetxInterest(ingress, interest, pitEntry);
+    return afterReceiveRetxInterest(interest, ingress, pitEntry);
   case RetxSuppressionResult::SUPPRESS:
     NFD_LOG_DEBUG(interest << " interestFrom " << ingress << " retx-suppress");
     return;
@@ -73,7 +73,7 @@ AccessStrategy::afterReceiveInterest(const FaceEndpoint& ingress, const Interest
 }
 
 void
-AccessStrategy::afterReceiveNewInterest(const FaceEndpoint& ingress, const Interest& interest,
+AccessStrategy::afterReceiveNewInterest(const Interest& interest, const FaceEndpoint& ingress,
                                         const shared_ptr<pit::Entry>& pitEntry)
 {
   const auto& fibEntry = this->lookupFib(*pitEntry);
@@ -86,7 +86,7 @@ AccessStrategy::afterReceiveNewInterest(const FaceEndpoint& ingress, const Inter
     NFD_LOG_DEBUG(interest << " interestFrom " << ingress << " new-interest mi=" << miName);
 
     // send to last working nexthop
-    bool isSentToLastNexthop = this->sendToLastNexthop(ingress, interest, pitEntry, *mi, fibEntry);
+    bool isSentToLastNexthop = this->sendToLastNexthop(interest, ingress, pitEntry, *mi, fibEntry);
     if (isSentToLastNexthop) {
       return;
     }
@@ -98,7 +98,7 @@ AccessStrategy::afterReceiveNewInterest(const FaceEndpoint& ingress, const Inter
   // no measurements, or last working nexthop unavailable
 
   // multicast to all nexthops except incoming face
-  size_t nMulticastSent = this->multicast(ingress.face, interest, pitEntry, fibEntry);
+  size_t nMulticastSent = this->multicast(interest, ingress.face, pitEntry, fibEntry);
 
   if (nMulticastSent == 0) {
     this->rejectPendingInterest(pitEntry);
@@ -106,16 +106,16 @@ AccessStrategy::afterReceiveNewInterest(const FaceEndpoint& ingress, const Inter
 }
 
 void
-AccessStrategy::afterReceiveRetxInterest(const FaceEndpoint& ingress, const Interest& interest,
+AccessStrategy::afterReceiveRetxInterest(const Interest& interest, const FaceEndpoint& ingress,
                                          const shared_ptr<pit::Entry>& pitEntry)
 {
   const auto& fibEntry = this->lookupFib(*pitEntry);
   NFD_LOG_DEBUG(interest << " interestFrom " << ingress << " retx-forward");
-  this->multicast(ingress.face, interest, pitEntry, fibEntry);
+  this->multicast(interest, ingress.face, pitEntry, fibEntry);
 }
 
 bool
-AccessStrategy::sendToLastNexthop(const FaceEndpoint& ingress, const Interest& interest,
+AccessStrategy::sendToLastNexthop(const Interest& interest, const FaceEndpoint& ingress,
                                   const shared_ptr<pit::Entry>& pitEntry, MtInfo& mi,
                                   const fib::Entry& fibEntry)
 {
@@ -144,14 +144,15 @@ AccessStrategy::sendToLastNexthop(const FaceEndpoint& ingress, const Interest& i
   NFD_LOG_DEBUG(pitEntry->getInterest() << " interestTo " << mi.lastNexthop
                 << " last-nexthop rto=" << time::duration_cast<time::microseconds>(rto).count());
 
-  this->sendInterest(pitEntry, FaceEndpoint(*outFace, 0), interest);
+  if (!this->sendInterest(interest, *outFace, pitEntry)) {
+    return false;
+  }
 
   // schedule RTO timeout
   PitInfo* pi = pitEntry->insertStrategyInfo<PitInfo>().first;
   pi->rtoTimer = getScheduler().schedule(rto,
-    [this, pitWeak = weak_ptr<pit::Entry>(pitEntry), face = ingress.face.getId(),
-     endpoint = ingress.endpoint, lastNexthop = mi.lastNexthop] {
-      afterRtoTimeout(pitWeak, face, endpoint, lastNexthop);
+    [this, pitWeak = weak_ptr<pit::Entry>(pitEntry), face = ingress.face.getId(), nh = mi.lastNexthop] {
+      afterRtoTimeout(pitWeak, face, nh);
     });
 
   return true;
@@ -159,7 +160,7 @@ AccessStrategy::sendToLastNexthop(const FaceEndpoint& ingress, const Interest& i
 
 void
 AccessStrategy::afterRtoTimeout(const weak_ptr<pit::Entry>& pitWeak,
-                                FaceId inFaceId, EndpointId inEndpointId, FaceId firstOutFaceId)
+                                FaceId inFaceId, FaceId firstOutFaceId)
 {
   shared_ptr<pit::Entry> pitEntry = pitWeak.lock();
   // if PIT entry is gone, RTO timer should have been cancelled
@@ -183,11 +184,11 @@ AccessStrategy::afterRtoTimeout(const weak_ptr<pit::Entry>& pitWeak,
 
   NFD_LOG_DEBUG(pitEntry->getInterest() << " timeoutFrom " << firstOutFaceId
                 << " multicast-except " << firstOutFaceId);
-  this->multicast(*inFace, interest, pitEntry, fibEntry, firstOutFaceId);
+  this->multicast(interest, *inFace, pitEntry, fibEntry, firstOutFaceId);
 }
 
 size_t
-AccessStrategy::multicast(const Face& inFace, const Interest& interest,
+AccessStrategy::multicast(const Interest& interest, const Face& inFace,
                           const shared_ptr<pit::Entry>& pitEntry, const fib::Entry& fibEntry,
                           FaceId exceptFace)
 {
@@ -199,15 +200,16 @@ AccessStrategy::multicast(const Face& inFace, const Interest& interest,
       continue;
     }
     NFD_LOG_DEBUG(pitEntry->getInterest() << " interestTo " << outFace.getId() << " multicast");
-    this->sendInterest(pitEntry, FaceEndpoint(outFace, 0), interest);
-    ++nSent;
+    if (this->sendInterest(interest, outFace, pitEntry)) {
+      ++nSent;
+    }
   }
   return nSent;
 }
 
 void
-AccessStrategy::beforeSatisfyInterest(const shared_ptr<pit::Entry>& pitEntry,
-                                      const FaceEndpoint& ingress, const Data& data)
+AccessStrategy::beforeSatisfyInterest(const Data& data, const FaceEndpoint& ingress,
+                                      const shared_ptr<pit::Entry>& pitEntry)
 {
   PitInfo* pi = pitEntry->getStrategyInfo<PitInfo>();
   if (pi != nullptr) {
@@ -253,15 +255,15 @@ AccessStrategy::updateMeasurements(const Face& inFace, const Data& data, time::n
 std::tuple<Name, AccessStrategy::MtInfo*>
 AccessStrategy::findPrefixMeasurements(const pit::Entry& pitEntry)
 {
-  measurements::Entry* me = this->getMeasurements().findLongestPrefixMatch(pitEntry);
+  auto me = this->getMeasurements().findLongestPrefixMatch(pitEntry);
   if (me == nullptr) {
     return std::make_tuple(Name(), nullptr);
   }
 
-  MtInfo* mi = me->getStrategyInfo<MtInfo>();
-  BOOST_ASSERT(mi != nullptr);
-  // XXX after runtime strategy change, it's possible that me exists but mi doesn't exist;
-  // this case needs another longest prefix match until mi is found
+  auto mi = me->getStrategyInfo<MtInfo>();
+  // TODO: after a runtime strategy change, it's possible that a measurements::Entry exists but
+  //       the corresponding MtInfo doesn't exist (mi == nullptr); this case needs another longest
+  //       prefix match until an MtInfo is found.
   return std::make_tuple(me->getName(), mi);
 }
 

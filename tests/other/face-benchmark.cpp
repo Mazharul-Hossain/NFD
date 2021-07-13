@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,7 +33,7 @@
 #include <fstream>
 #include <iostream>
 
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
 #include <valgrind/callgrind.h>
 #endif
 
@@ -43,14 +43,13 @@ namespace tests {
 class FaceBenchmark
 {
 public:
+  explicit
   FaceBenchmark(const char* configFileName)
-    : m_terminationSignalSet{getGlobalIoService()}
+    : m_terminationSignalSet{getGlobalIoService(), SIGINT, SIGTERM}
     , m_tcpChannel{tcp::Endpoint{boost::asio::ip::tcp::v4(), 6363}, false,
-                   bind([] { return ndn::nfd::FACE_SCOPE_NON_LOCAL; })}
-    , m_udpChannel{udp::Endpoint{boost::asio::ip::udp::v4(), 6363}, 10_min, false}
+                   [] (auto&&...) { return ndn::nfd::FACE_SCOPE_NON_LOCAL; }}
+    , m_udpChannel{udp::Endpoint{boost::asio::ip::udp::v4(), 6363}, 10_min, false, ndn::MAX_NDN_PACKET_SIZE}
   {
-    m_terminationSignalSet.add(SIGINT);
-    m_terminationSignalSet.add(SIGTERM);
     m_terminationSignalSet.async_wait([] (const auto& error, int) {
       if (!error)
         getGlobalIoService().stop();
@@ -58,12 +57,12 @@ public:
 
     parseConfig(configFileName);
 
-    m_tcpChannel.listen(bind(&FaceBenchmark::onLeftFaceCreated, this, _1),
-                        bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
+    m_tcpChannel.listen(std::bind(&FaceBenchmark::onLeftFaceCreated, this, _1),
+                        std::bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
     std::clog << "Listening on " << m_tcpChannel.getUri() << std::endl;
 
-    m_udpChannel.listen(bind(&FaceBenchmark::onLeftFaceCreated, this, _1),
-                        bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
+    m_udpChannel.listen(std::bind(&FaceBenchmark::onLeftFaceCreated, this, _1),
+                        std::bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
     std::clog << "Listening on " << m_udpChannel.getUri() << std::endl;
   }
 
@@ -86,7 +85,7 @@ private:
         std::clog << "Unsupported protocol '" << uriR.getScheme() << "'" << std::endl;
       }
       else {
-        m_faceUris.push_back(std::make_pair(uriL, uriR));
+        m_faceUris.emplace_back(uriL, uriR);
       }
     }
 
@@ -125,13 +124,13 @@ private:
     auto port = boost::lexical_cast<uint16_t>(uriR.getPort());
     if (uriR.getScheme() == "tcp4") {
       m_tcpChannel.connect(tcp::Endpoint(addr, port), {},
-                           bind(&FaceBenchmark::onRightFaceCreated, this, faceL, _1),
-                           bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
+                           std::bind(&FaceBenchmark::onRightFaceCreated, this, faceL, _1),
+                           std::bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
     }
     else if (uriR.getScheme() == "udp4") {
       m_udpChannel.connect(udp::Endpoint(addr, port), {},
-                           bind(&FaceBenchmark::onRightFaceCreated, this, faceL, _1),
-                           bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
+                           std::bind(&FaceBenchmark::onRightFaceCreated, this, faceL, _1),
+                           std::bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
     }
   }
 
@@ -149,13 +148,13 @@ private:
   tieFaces(const shared_ptr<Face>& face1, const shared_ptr<Face>& face2)
   {
     face1->afterReceiveInterest.connect([face2] (const Interest& interest, const EndpointId&) {
-      face2->sendInterest(interest, 0);
+      face2->sendInterest(interest);
     });
     face1->afterReceiveData.connect([face2] (const Data& data, const EndpointId&) {
-      face2->sendData(data, 0);
+      face2->sendData(data);
     });
     face1->afterReceiveNack.connect([face2] (const ndn::lp::Nack& nack, const EndpointId&) {
-      face2->sendNack(nack, 0);
+      face2->sendNack(nack);
     });
   }
 
@@ -189,7 +188,7 @@ main(int argc, char** argv)
 
   try {
     nfd::tests::FaceBenchmark bench{argv[1]};
-#ifdef HAVE_VALGRIND
+#ifdef NFD_HAVE_VALGRIND
     CALLGRIND_START_INSTRUMENTATION;
 #endif
     nfd::getGlobalIoService().run();

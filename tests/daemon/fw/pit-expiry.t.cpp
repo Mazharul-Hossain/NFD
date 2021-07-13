@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -62,10 +62,10 @@ public:
   }
 
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override
   {
-    DummyStrategy::afterReceiveInterest(ingress, interest, pitEntry);
+    DummyStrategy::afterReceiveInterest(interest, ingress, pitEntry);
 
     if (afterReceiveInterest_count <= 1) {
       setExpiryTimer(pitEntry, 190_ms);
@@ -73,10 +73,21 @@ public:
   }
 
   void
-  beforeSatisfyInterest(const shared_ptr<pit::Entry>& pitEntry,
-                        const FaceEndpoint& ingress, const Data& data) override
+  afterContentStoreHit(const Data& data, const FaceEndpoint& ingress,
+                       const shared_ptr<pit::Entry>& pitEntry) override
   {
-    DummyStrategy::beforeSatisfyInterest(pitEntry, ingress, data);
+    if (afterContentStoreHit_count == 0) {
+      setExpiryTimer(pitEntry, 190_ms);
+    }
+
+    DummyStrategy::afterContentStoreHit(data, ingress, pitEntry);
+  }
+
+  void
+  beforeSatisfyInterest(const Data& data, const FaceEndpoint& ingress,
+                        const shared_ptr<pit::Entry>& pitEntry) override
+  {
+    DummyStrategy::beforeSatisfyInterest(data, ingress, pitEntry);
 
     if (beforeSatisfyInterest_count <= 2) {
       setExpiryTimer(pitEntry, 190_ms);
@@ -84,19 +95,8 @@ public:
   }
 
   void
-  afterContentStoreHit(const shared_ptr<pit::Entry>& pitEntry,
-                       const FaceEndpoint& ingress, const Data& data) override
-  {
-    if (afterContentStoreHit_count == 0) {
-      setExpiryTimer(pitEntry, 190_ms);
-    }
-
-    DummyStrategy::afterContentStoreHit(pitEntry, ingress, data);
-  }
-
-  void
-  afterReceiveData(const shared_ptr<pit::Entry>& pitEntry,
-                   const FaceEndpoint& ingress, const Data& data) override
+  afterReceiveData(const Data& data, const FaceEndpoint& ingress,
+                   const shared_ptr<pit::Entry>& pitEntry) override
   {
     ++afterReceiveData_count;
 
@@ -104,14 +104,14 @@ public:
       setExpiryTimer(pitEntry, 290_ms);
     }
 
-    this->sendDataToAll(pitEntry, ingress, data);
+    this->sendDataToAll(data, pitEntry, ingress.face);
   }
 
   void
-  afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
+  afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                    const shared_ptr<pit::Entry>& pitEntry) override
   {
-    DummyStrategy::afterReceiveNack(ingress, nack, pitEntry);
+    DummyStrategy::afterReceiveNack(nack, ingress, pitEntry);
 
     if (afterReceiveNack_count <= 1) {
       setExpiryTimer(pitEntry, 50_ms);
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE(CsHit)
   faceTable.add(face1);
   faceTable.add(face2);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -219,7 +219,7 @@ BOOST_AUTO_TEST_CASE(ReceiveNack)
   faceTable.add(face2);
   faceTable.add(face3);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -251,7 +251,7 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveInterest)
   auto face = make_shared<DummyFace>();
   faceTable.add(face);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -281,8 +281,8 @@ BOOST_AUTO_TEST_CASE(ResetTimerBeforeSatisfyInterest)
   faceTable.add(face2);
   faceTable.add(face3);
 
-  Name strategyA("/strategyA/%FD%01");
-  Name strategyB("/strategyB/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
+  auto strategyB = Name("/strategyB").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   PitExpiryTestStrategy::registerAs(strategyB);
   auto& sA = choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
@@ -336,7 +336,7 @@ BOOST_AUTO_TEST_CASE(ResetTimerAfterReceiveData)
   faceTable.add(face1);
   faceTable.add(face2);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   auto& sA = choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 
@@ -385,7 +385,7 @@ BOOST_AUTO_TEST_CASE(ReceiveNackAfterResetTimer)
   faceTable.add(face2);
   faceTable.add(face3);
 
-  Name strategyA("/strategyA/%FD%01");
+  auto strategyA = Name("/strategyA").appendVersion(1);
   PitExpiryTestStrategy::registerAs(strategyA);
   choose<PitExpiryTestStrategy>(forwarder, "/A", strategyA);
 

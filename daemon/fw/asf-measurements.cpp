@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -78,66 +78,72 @@ namespace nfd {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-            constexpr time::microseconds AsfMeasurements::MEASUREMENTS_LIFETIME;
+constexpr time::microseconds AsfMeasurements::MEASUREMENTS_LIFETIME;
 
-            AsfMeasurements::AsfMeasurements(MeasurementsAccessor &measurements)
-                    : m_measurements(measurements),
-                      m_rttEstimatorOpts(make_shared<ndn::util::RttEstimator::Options>()) {
-            }
+AsfMeasurements::AsfMeasurements(MeasurementsAccessor& measurements)
+  : m_measurements(measurements)
+  , m_rttEstimatorOpts(make_shared<ndn::util::RttEstimator::Options>())
+{
+}
 
-            FaceInfo *
-            AsfMeasurements::getFaceInfo(const fib::Entry &fibEntry, const Interest &interest, FaceId faceId) {
-                return getOrCreateNamespaceInfo(fibEntry, interest).getFaceInfo(faceId);
-            }
+FaceInfo*
+AsfMeasurements::getFaceInfo(const fib::Entry& fibEntry, const Name& interestName, FaceId faceId)
+{
+  return getOrCreateNamespaceInfo(fibEntry, interestName).getFaceInfo(faceId);
+}
 
-            FaceInfo &
-            AsfMeasurements::getOrCreateFaceInfo(const fib::Entry &fibEntry, const Interest &interest,
-                                                 FaceId faceId) {
-                return getOrCreateNamespaceInfo(fibEntry, interest).getOrCreateFaceInfo(faceId);
-            }
+FaceInfo&
+AsfMeasurements::getOrCreateFaceInfo(const fib::Entry& fibEntry, const Name& interestName, FaceId faceId)
+{
+  return getOrCreateNamespaceInfo(fibEntry, interestName).getOrCreateFaceInfo(faceId);
+}
 
-            NamespaceInfo *
-            AsfMeasurements::getNamespaceInfo(const Name &prefix) {
-                measurements::Entry *me = m_measurements.findLongestPrefixMatch(prefix);
-                if (me == nullptr) {
-                    return nullptr;
-                }
+NamespaceInfo*
+AsfMeasurements::getNamespaceInfo(const Name& prefix)
+{
+  auto* me = m_measurements.findLongestPrefixMatch(prefix);
+  if (me == nullptr) {
+    return nullptr;
+  }
 
-                // Set or update entry lifetime
-                extendLifetime(*me);
+  // Set or update entry lifetime
+  extendLifetime(*me);
 
-                NamespaceInfo *info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts).first;
-                BOOST_ASSERT(info != nullptr);
-                return info;
-            }
+  NamespaceInfo* info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts).first;
+  BOOST_ASSERT(info != nullptr);
+  return info;
+}
 
-            NamespaceInfo &
-            AsfMeasurements::getOrCreateNamespaceInfo(const fib::Entry &fibEntry, const Interest &interest) {
-                measurements::Entry *me = m_measurements.get(fibEntry);
+NamespaceInfo&
+AsfMeasurements::getOrCreateNamespaceInfo(const fib::Entry& fibEntry, const Name& prefix)
+{
+  auto* me = m_measurements.get(fibEntry);
 
-                // If the FIB entry is not under the strategy's namespace, find a part of the prefix
-                // that falls under the strategy's namespace
-                for (size_t prefixLen = fibEntry.getPrefix().size() + 1;
-                     me == nullptr && prefixLen <= interest.getName().size(); ++prefixLen) {
-                    me = m_measurements.get(interest.getName().getPrefix(prefixLen));
-                }
+  // If the FIB entry is not under the strategy's namespace, find a part of the prefix
+  // that falls under the strategy's namespace
+  for (size_t prefixLen = fibEntry.getPrefix().size() + 1;
+       me == nullptr && prefixLen <= prefix.size();
+       ++prefixLen) {
+    me = m_measurements.get(prefix.getPrefix(prefixLen));
+  }
 
-                // Either the FIB entry or the Interest's name must be under this strategy's namespace
-                BOOST_ASSERT(me != nullptr);
+  // Either the FIB entry or the Interest's name must be under this strategy's namespace
+  BOOST_ASSERT(me != nullptr);
 
-                // Set or update entry lifetime
-                extendLifetime(*me);
+  // Set or update entry lifetime
+  extendLifetime(*me);
 
-                NamespaceInfo *info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts).first;
-                BOOST_ASSERT(info != nullptr);
-                return *info;
-            }
+  NamespaceInfo* info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts).first;
+  BOOST_ASSERT(info != nullptr);
+  return *info;
+}
 
-            void
-            AsfMeasurements::extendLifetime(measurements::Entry &me) {
-                m_measurements.extendLifetime(me, MEASUREMENTS_LIFETIME);
-            }
+void
+AsfMeasurements::extendLifetime(measurements::Entry& me)
+{
+  m_measurements.extendLifetime(me, MEASUREMENTS_LIFETIME);
+}
 
-        } // namespace asf
-    } // namespace fw
+} // namespace asf
+} // namespace fw
 } // namespace nfd

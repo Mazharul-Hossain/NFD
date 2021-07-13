@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,7 +34,7 @@
 namespace nfd {
 namespace fw {
 
-/** \brief Access Router Strategy version 1
+/** \brief Access Router strategy
  *
  *  This strategy is designed for the last hop on the NDN testbed,
  *  where each nexthop connects to a laptop, links are lossy, and FIB is mostly correct.
@@ -44,8 +44,6 @@ namespace fw {
  *     the granularity of this knowledge is the parent of Data Name.
  *  3. Forward subsequent Interests to the last working nexthop.
  *     If it doesn't respond, multicast again.
- *
- *  \note This strategy is not EndpointId-aware.
  */
 class AccessStrategy : public Strategy
 {
@@ -58,19 +56,19 @@ public:
 
 public: // triggers
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  beforeSatisfyInterest(const shared_ptr<pit::Entry>& pitEntry,
-                        const FaceEndpoint& ingress, const Data& data) override;
+  beforeSatisfyInterest(const Data& data, const FaceEndpoint& ingress,
+                        const shared_ptr<pit::Entry>& pitEntry) override;
 
 private: // StrategyInfo
   using RttEstimator = ndn::util::RttEstimator;
 
   /** \brief StrategyInfo on PIT entry
    */
-  class PitInfo : public StrategyInfo
+  class PitInfo final : public StrategyInfo
   {
   public:
     static constexpr int
@@ -85,7 +83,7 @@ private: // StrategyInfo
 
   /** \brief StrategyInfo in measurements table
    */
-  class MtInfo : public StrategyInfo
+  class MtInfo final : public StrategyInfo
   {
   public:
     static constexpr int
@@ -135,31 +133,31 @@ private: // StrategyInfo
 
 private: // forwarding procedures
   void
-  afterReceiveNewInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveNewInterest(const Interest& interest, const FaceEndpoint& ingress,
                           const shared_ptr<pit::Entry>& pitEntry);
 
   void
-  afterReceiveRetxInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveRetxInterest(const Interest& interest, const FaceEndpoint& ingress,
                            const shared_ptr<pit::Entry>& pitEntry);
 
   /** \brief send to last working nexthop
    *  \return whether an Interest is sent
    */
   bool
-  sendToLastNexthop(const FaceEndpoint& ingress, const Interest& interest,
+  sendToLastNexthop(const Interest& interest, const FaceEndpoint& ingress,
                     const shared_ptr<pit::Entry>& pitEntry, MtInfo& mi,
                     const fib::Entry& fibEntry);
 
   void
   afterRtoTimeout(const weak_ptr<pit::Entry>& pitWeak,
-                  FaceId inFaceId, EndpointId inEndpointId, FaceId firstOutFaceId);
+                  FaceId inFaceId, FaceId firstOutFaceId);
 
   /** \brief multicast to all nexthops
    *  \param exceptFace don't forward to this face; also, \p inFace is always excluded
    *  \return number of Interests that were sent
    */
   size_t
-  multicast(const Face& inFace, const Interest& interest,
+  multicast(const Interest& interest, const Face& inFace,
             const shared_ptr<pit::Entry>& pitEntry, const fib::Entry& fibEntry,
             FaceId exceptFace = face::INVALID_FACEID);
 

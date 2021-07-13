@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,20 +31,17 @@
 #include "fw/access-strategy.hpp"
 #include "fw/asf-strategy.hpp"
 #include "fw/best-route-strategy.hpp"
-#include "fw/best-route-strategy2.hpp"
 #include "fw/multicast-strategy.hpp"
-#include "fw/ncc-strategy.hpp"
 #include "fw/self-learning-strategy.hpp"
 #include "fw/random-strategy.hpp"
 
 #include "tests/test-common.hpp"
+
 #include <boost/mpl/vector.hpp>
 
 namespace nfd {
 namespace fw {
 namespace tests {
-
-using namespace nfd::tests;
 
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_AUTO_TEST_SUITE(TestStrategyInstantiation)
@@ -76,11 +73,9 @@ public:
 
 using Tests = boost::mpl::vector<
   Test<AccessStrategy, false, 1>,
-  Test<AsfStrategy, true, 3>,
-  Test<BestRouteStrategy, false, 1>,
-  Test<BestRouteStrategy2, false, 5>,
-  Test<MulticastStrategy, false, 3>,
-  Test<NccStrategy, false, 1>,
+  Test<AsfStrategy, true, 4>,
+  Test<BestRouteStrategy, false, 5>,
+  Test<MulticastStrategy, false, 4>,
   Test<SelfLearningStrategy, false, 1>,
   Test<RandomStrategy, false, 1>
 >;

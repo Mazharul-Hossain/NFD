@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2017,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,9 +27,10 @@
 #define NFD_TOOLS_NFDC_STATUS_REPORT_HPP
 
 #include "module.hpp"
+
 #include <ndn-cxx/face.hpp>
 #include <ndn-cxx/security/key-chain.hpp>
-#include <ndn-cxx/security/v2/validator.hpp>
+#include <ndn-cxx/security/validator.hpp>
 
 namespace nfd {
 namespace tools {
@@ -37,7 +38,7 @@ namespace nfdc {
 
 using ndn::Face;
 using ndn::KeyChain;
-using ndn::security::v2::Validator;
+using ndn::security::Validator;
 
 enum class ReportFormat {
   XML = 1,
@@ -55,7 +56,7 @@ operator<<(std::ostream& os, ReportFormat fmt);
 class StatusReport : noncopyable
 {
 public:
-#ifdef WITH_TESTS
+#ifdef NFD_WITH_TESTS
   virtual
   ~StatusReport() = default;
 #endif
@@ -83,7 +84,7 @@ public:
   formatText(std::ostream& os) const;
 
 private:
-  VIRTUAL_WITH_TESTS void
+  NFD_VIRTUAL_WITH_TESTS void
   processEvents(Face& face);
 
 public:

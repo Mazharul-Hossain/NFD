@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,18 +33,18 @@ namespace nfd {
 
 NFD_LOG_INIT(PrivilegeHelper);
 
-#ifdef HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#ifdef NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 uid_t PrivilegeHelper::s_normalUid = ::geteuid();
 gid_t PrivilegeHelper::s_normalGid = ::getegid();
 
 uid_t PrivilegeHelper::s_privilegedUid = ::geteuid();
 gid_t PrivilegeHelper::s_privilegedGid = ::getegid();
-#endif // HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#endif // NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 
 void
 PrivilegeHelper::initialize(const std::string& userName, const std::string& groupName)
 {
-#ifdef HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#ifdef NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
   static const size_t MAX_GROUP_BUFFER_SIZE = 16384; // 16 KiB
   static const size_t MAX_PASSWD_BUFFER_SIZE = 16384;
 
@@ -63,25 +63,23 @@ PrivilegeHelper::initialize(const std::string& userName, const std::string& grou
       groupSize = FALLBACK_GROUP_BUFFER_SIZE;
 
     std::vector<char> groupBuffer(static_cast<size_t>(groupSize));
-    struct group group;
-    struct group* groupResult = nullptr;
+    group gr;
+    group* grResult = nullptr;
 
-    int errorCode = getgrnam_r(groupName.data(), &group,
-                               groupBuffer.data(), groupBuffer.size(), &groupResult);
+    int errorCode = getgrnam_r(groupName.data(), &gr, groupBuffer.data(), groupBuffer.size(), &grResult);
 
     while (errorCode == ERANGE) {
       if (groupBuffer.size() * 2 > MAX_GROUP_BUFFER_SIZE)
         throw Error("Cannot allocate large enough buffer for struct group");
 
       groupBuffer.resize(groupBuffer.size() * 2);
-      errorCode = getgrnam_r(groupName.data(), &group,
-                             groupBuffer.data(), groupBuffer.size(), &groupResult);
+      errorCode = getgrnam_r(groupName.data(), &gr, groupBuffer.data(), groupBuffer.size(), &grResult);
     }
 
-    if (errorCode != 0 || !groupResult)
+    if (errorCode != 0 || !grResult)
       throw Error("Failed to get gid for \"" + groupName + "\"");
 
-    s_normalGid = group.gr_gid;
+    s_normalGid = gr.gr_gid;
   }
 
   if (!userName.empty()) {
@@ -91,37 +89,35 @@ PrivilegeHelper::initialize(const std::string& userName, const std::string& grou
       passwdSize = FALLBACK_PASSWD_BUFFER_SIZE;
 
     std::vector<char> passwdBuffer(static_cast<size_t>(passwdSize));
-    struct passwd passwd;
-    struct passwd* passwdResult = nullptr;
+    passwd pw;
+    passwd* pwResult = nullptr;
 
-    int errorCode = getpwnam_r(userName.data(), &passwd,
-                               passwdBuffer.data(), passwdBuffer.size(), &passwdResult);
+    int errorCode = getpwnam_r(userName.data(), &pw, passwdBuffer.data(), passwdBuffer.size(), &pwResult);
 
     while (errorCode == ERANGE) {
       if (passwdBuffer.size() * 2 > MAX_PASSWD_BUFFER_SIZE)
         throw Error("Cannot allocate large enough buffer for struct passwd");
 
       passwdBuffer.resize(passwdBuffer.size() * 2);
-      errorCode = getpwnam_r(userName.data(), &passwd,
-                             passwdBuffer.data(), passwdBuffer.size(), &passwdResult);
+      errorCode = getpwnam_r(userName.data(), &pw, passwdBuffer.data(), passwdBuffer.size(), &pwResult);
     }
 
-    if (errorCode != 0 || !passwdResult)
+    if (errorCode != 0 || !pwResult)
       throw Error("Failed to get uid for \"" + userName + "\"");
 
-    s_normalUid = passwd.pw_uid;
+    s_normalUid = pw.pw_uid;
   }
 #else
   if (!userName.empty() || !groupName.empty()) {
     throw Error("Dropping and raising privileges is not supported on this platform");
   }
-#endif // HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#endif // NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 }
 
 void
 PrivilegeHelper::drop()
 {
-#ifdef HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#ifdef NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
   if (::geteuid() == s_normalUid && ::getegid() == s_normalGid)
     return;
 
@@ -136,13 +132,13 @@ PrivilegeHelper::drop()
   NFD_LOG_INFO("dropped to effective uid=" << ::geteuid() << " gid=" << ::getegid());
 #else
   NFD_LOG_WARN("Dropping privileges is not supported on this platform");
-#endif // HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#endif // NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 }
 
 void
 PrivilegeHelper::raise()
 {
-#ifdef HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#ifdef NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
   if (::geteuid() == s_privilegedUid && ::getegid() == s_privilegedGid)
     return;
 
@@ -157,7 +153,7 @@ PrivilegeHelper::raise()
   NFD_LOG_INFO("elevated to effective uid=" << ::geteuid() << " gid=" << ::getegid());
 #else
   NFD_LOG_WARN("Elevating privileges is not supported on this platform");
-#endif // HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#endif // NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 }
 
 } // namespace nfd

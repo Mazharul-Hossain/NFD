@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -267,7 +267,6 @@ BOOST_AUTO_TEST_CASE(BadListen)
   BOOST_CHECK_THROW(parseConfig(CONFIG, false), ConfigFile::Error);
 }
 
-BOOST_AUTO_TEST_CASE_EXPECTED_FAILURES(BadPort, 2) // Bug #4489
 BOOST_AUTO_TEST_CASE(BadPort)
 {
   // not a number
@@ -459,10 +458,10 @@ BOOST_FIXTURE_TEST_CASE(CreateFaceTimeout, CreateFaceTimeoutFixture)
 {
   createChannel("0.0.0.0", "20070");
   factory.createFace({FaceUri("tcp4://192.0.2.1:20070"), {}, {}},
-                     bind(&CreateFaceTimeoutFixture::onFaceCreated, this, _1),
-                     bind(&CreateFaceTimeoutFixture::onConnectFailed, this, _2));
+                     std::bind(&CreateFaceTimeoutFixture::onFaceCreated, this, _1),
+                     std::bind(&CreateFaceTimeoutFixture::onConnectFailed, this, _2));
 
-  BOOST_REQUIRE_EQUAL(limitedIo.run(1, 10_s), LimitedIo::EXCEED_OPS);
+  BOOST_CHECK_EQUAL(limitedIo.run(1, 10_s), LimitedIo::EXCEED_OPS);
   BOOST_CHECK(face == nullptr);
 }
 

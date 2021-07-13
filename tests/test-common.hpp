@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,7 +31,7 @@
 
 #include <ndn-cxx/prefix-announcement.hpp>
 
-#ifdef HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#ifdef NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 #include <unistd.h>
 #define SKIP_IF_NOT_SUPERUSER() \
   do { \
@@ -42,31 +42,35 @@
   } while (false)
 #else
 #define SKIP_IF_NOT_SUPERUSER()
-#endif // HAVE_PRIVILEGE_DROP_AND_ELEVATE
+#endif // NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 
 namespace nfd {
 namespace tests {
 
-/** \brief create an Interest
+/**
+ * \brief Create an Interest
  */
 shared_ptr<Interest>
 makeInterest(const Name& name, bool canBePrefix = false,
              optional<time::milliseconds> lifetime = nullopt,
              optional<Interest::Nonce> nonce = nullopt);
 
-/** \brief create a Data with fake signature
- *  \note Data may be modified afterwards without losing the fake signature.
- *        If a real signature is desired, sign again with KeyChain.
+/**
+ * \brief Create a Data with a null (i.e., empty) signature
+ *
+ * If a "real" signature is desired, use KeyChainFixture and sign again with `m_keyChain`.
  */
 shared_ptr<Data>
 makeData(const Name& name);
 
-/** \brief add a fake signature to Data
+/**
+ * \brief Add a null signature to \p data
  */
 Data&
 signData(Data& data);
 
-/** \brief add a fake signature to Data
+/**
+ * \brief Add a null signature to \p data
  */
 inline shared_ptr<Data>
 signData(shared_ptr<Data> data)
@@ -75,15 +79,17 @@ signData(shared_ptr<Data> data)
   return data;
 }
 
-/** \brief create a Nack
+/**
+ * \brief Create a Nack
  */
 lp::Nack
 makeNack(Interest interest, lp::NackReason reason);
 
-/** \brief replace a name component in a packet
- *  \param[inout] pkt the packet
- *  \param index the index of the name component to replace
- *  \param args arguments to name::Component constructor
+/**
+ * \brief Replace a name component in a packet
+ * \param[inout] pkt the packet
+ * \param index the index of the name component to replace
+ * \param args arguments to name::Component constructor
  */
 template<typename Packet, typename ...Args>
 void
@@ -94,26 +100,29 @@ setNameComponent(Packet& pkt, ssize_t index, Args&& ...args)
   pkt.setName(name);
 }
 
-/** \brief create a prefix announcement without signing
+/**
+ * \brief Create a prefix announcement without signing
  */
 ndn::PrefixAnnouncement
 makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
               optional<ndn::security::ValidityPeriod> validity = nullopt);
 
-/** \brief create a prefix announcement without signing
- *  \param announcedName announced name
- *  \param expiration expiration period
- *  \param validityFromNow validity period, relative from now
+/**
+ * \brief Create a prefix announcement without signing
+ * \param announcedName announced name
+ * \param expiration expiration period
+ * \param validityFromNow validity period, relative from now
  */
 ndn::PrefixAnnouncement
 makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
               std::pair<time::seconds, time::seconds> validityFromNow);
 
-/** \brief sign a prefix announcement
+/**
+ * \brief Sign a prefix announcement
  */
 ndn::PrefixAnnouncement
 signPrefixAnn(ndn::PrefixAnnouncement&& pa, ndn::KeyChain& keyChain,
-              const ndn::security::SigningInfo& si = ndn::KeyChain::getDefaultSigningInfo(),
+              const ndn::security::SigningInfo& si = ndn::security::SigningInfo(),
               optional<uint64_t> version = nullopt);
 
 } // namespace tests

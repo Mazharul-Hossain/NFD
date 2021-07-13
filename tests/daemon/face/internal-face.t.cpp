@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -87,9 +87,9 @@ BOOST_AUTO_TEST_CASE(ReceiveInterestTimeout)
 
   bool hasTimeout = false;
   clientFace->expressInterest(*interest,
-    bind([] { BOOST_ERROR("unexpected Data"); }),
-    bind([] { BOOST_ERROR("unexpected Nack"); }),
-    bind([&hasTimeout] { hasTimeout = true; }));
+    [] (auto&&...) { BOOST_ERROR("unexpected Data"); },
+    [] (auto&&...) { BOOST_ERROR("unexpected Nack"); },
+    [&] (auto&&...) { hasTimeout = true; });
   this->advanceClocks(1_ms, 10);
 
   BOOST_REQUIRE_EQUAL(receivedInterests.size(), 1);
@@ -106,18 +106,18 @@ BOOST_AUTO_TEST_CASE(ReceiveInterestSendData)
 
   bool hasReceivedData = false;
   clientFace->expressInterest(*interest,
-    [&hasReceivedData] (const Interest&, const Data& data) {
+    [&] (const Interest&, const Data& data) {
       hasReceivedData = true;
       BOOST_CHECK_EQUAL(data.getName(), "/PQstEJGdL/aI7oCrDXNX");
     },
-    bind([] { BOOST_ERROR("unexpected Nack"); }),
-    bind([] { BOOST_ERROR("unexpected timeout"); }));
+    [] (auto&&...) { BOOST_ERROR("unexpected Nack"); },
+    [] (auto&&...) { BOOST_ERROR("unexpected timeout"); });
   this->advanceClocks(1_ms, 10);
 
   BOOST_REQUIRE_EQUAL(receivedInterests.size(), 1);
   BOOST_CHECK_EQUAL(receivedInterests.back().getName(), "/PQstEJGdL");
 
-  forwarderFace->sendData(*makeData("/PQstEJGdL/aI7oCrDXNX"), 0);
+  forwarderFace->sendData(*makeData("/PQstEJGdL/aI7oCrDXNX"));
   this->advanceClocks(1_ms, 10);
 
   BOOST_CHECK(hasReceivedData);
@@ -129,18 +129,18 @@ BOOST_AUTO_TEST_CASE(ReceiveInterestSendNack)
 
   bool hasReceivedNack = false;
   clientFace->expressInterest(*interest,
-    bind([] { BOOST_ERROR("unexpected Data"); }),
-    [&hasReceivedNack] (const Interest&, const lp::Nack& nack) {
+    [] (auto&&...) { BOOST_ERROR("unexpected Data"); },
+    [&] (const Interest&, const lp::Nack& nack) {
       hasReceivedNack = true;
       BOOST_CHECK_EQUAL(nack.getReason(), lp::NackReason::NO_ROUTE);
     },
-    bind([] { BOOST_ERROR("unexpected timeout"); }));
+    [] (auto&&...) { BOOST_ERROR("unexpected timeout"); });
   this->advanceClocks(1_ms, 10);
 
   BOOST_REQUIRE_EQUAL(receivedInterests.size(), 1);
   BOOST_CHECK_EQUAL(receivedInterests.back().getName(), "/1HrsRM1X");
 
-  forwarderFace->sendNack(makeNack(*interest, lp::NackReason::NO_ROUTE), 0);
+  forwarderFace->sendNack(makeNack(*interest, lp::NackReason::NO_ROUTE));
   this->advanceClocks(1_ms, 10);
 
   BOOST_CHECK(hasReceivedNack);
@@ -157,7 +157,7 @@ BOOST_AUTO_TEST_CASE(SendInterestReceiveData)
       clientFace->put(*makeData("/Wpc8TnEeoF/f6SzV8hD/3uytUJCuIi"));
     });
 
-  forwarderFace->sendInterest(*makeInterest("/Wpc8TnEeoF/f6SzV8hD", true), 0);
+  forwarderFace->sendInterest(*makeInterest("/Wpc8TnEeoF/f6SzV8hD", true));
   this->advanceClocks(1_ms, 10);
 
   BOOST_CHECK(hasDeliveredInterest);
@@ -177,7 +177,7 @@ BOOST_AUTO_TEST_CASE(SendInterestReceiveNack)
       clientFace->put(makeNack(interest, lp::NackReason::NO_ROUTE));
     });
 
-  forwarderFace->sendInterest(*interest, 0);
+  forwarderFace->sendInterest(*interest);
   this->advanceClocks(1_ms, 10);
 
   BOOST_CHECK(hasDeliveredInterest);
@@ -197,9 +197,9 @@ BOOST_AUTO_TEST_CASE(CloseForwarderFace)
 
   bool hasTimeout = false;
   clientFace->expressInterest(*interest,
-    bind([] { BOOST_ERROR("unexpected Data"); }),
-    bind([] { BOOST_ERROR("unexpected Nack"); }),
-    bind([&hasTimeout] { hasTimeout = true; }));
+    [] (auto&&...) { BOOST_ERROR("unexpected Data"); },
+    [] (auto&&...) { BOOST_ERROR("unexpected Nack"); },
+    [&] (auto&&...) { hasTimeout = true; });
   BOOST_CHECK_NO_THROW(this->advanceClocks(1_ms, 200));
 
   BOOST_CHECK_EQUAL(receivedInterests.size(), 0);
@@ -211,7 +211,7 @@ BOOST_AUTO_TEST_CASE(CloseClientFace)
   g_io.poll(); // #3248 workaround
   clientFace.reset();
 
-  forwarderFace->sendInterest(*makeInterest("/aau42XQqb"), 0);
+  forwarderFace->sendInterest(*makeInterest("/aau42XQqb"));
   BOOST_CHECK_NO_THROW(this->advanceClocks(1_ms, 10));
 }
 

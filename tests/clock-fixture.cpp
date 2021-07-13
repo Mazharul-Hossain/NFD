@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2020,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,10 +28,9 @@
 namespace nfd {
 namespace tests {
 
-ClockFixture::ClockFixture(boost::asio::io_service& io)
+ClockFixture::ClockFixture()
   : m_steadyClock(make_shared<time::UnitTestSteadyClock>())
   , m_systemClock(make_shared<time::UnitTestSystemClock>())
-  , m_io(io)
 {
   time::setCustomClocks(m_steadyClock, m_systemClock);
 }
@@ -53,16 +52,8 @@ ClockFixture::advanceClocks(time::nanoseconds tick, time::nanoseconds total)
     m_systemClock->advance(t);
     total -= t;
 
-    pollAfterClockTick();
+    afterTick();
   }
-}
-
-void
-ClockFixture::pollAfterClockTick()
-{
-  if (m_io.stopped())
-    m_io.reset();
-  m_io.poll();
 }
 
 } // namespace tests

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,23 +25,21 @@
 
 #include "manager-common-fixture.hpp"
 
-#include <ndn-cxx/security/signing-helpers.hpp>
-
 namespace nfd {
 namespace tests {
 
 const Name CommandInterestSignerFixture::DEFAULT_COMMAND_SIGNER_IDENTITY("/CommandInterestSignerFixture-identity");
 
 CommandInterestSignerFixture::CommandInterestSignerFixture()
-  : m_commandInterestSigner(m_keyChain)
+  : m_signer(m_keyChain)
 {
-  BOOST_REQUIRE(this->addIdentity(DEFAULT_COMMAND_SIGNER_IDENTITY));
+  BOOST_REQUIRE(m_keyChain.createIdentity(DEFAULT_COMMAND_SIGNER_IDENTITY));
 }
 
 Interest
 CommandInterestSignerFixture::makeCommandInterest(const Name& name, const Name& identity)
 {
-  return m_commandInterestSigner.makeCommandInterest(name, ndn::security::signingByIdentity(identity));
+  return m_signer.makeCommandInterest(name, ndn::security::signingByIdentity(identity));
 }
 
 Interest
@@ -196,7 +194,7 @@ operator<<(std::ostream& os, ManagerCommonFixture::CheckResponseResult result)
 void
 ManagerFixtureWithAuthenticator::setPrivilege(const std::string& privilege)
 {
-  saveIdentityCertificate(DEFAULT_COMMAND_SIGNER_IDENTITY, "ManagerCommonFixture.ndncert");
+  saveIdentityCert(DEFAULT_COMMAND_SIGNER_IDENTITY, "ManagerCommonFixture.ndncert");
 
   const std::string& config = R"CONFIG(
     authorizations

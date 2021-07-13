@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,11 +28,9 @@
  */
 
 // Strategies implementing recommended Nack processing procedure, sorted alphabetically.
-#include "fw/best-route-strategy2.hpp"
-#include "fw/multicast-strategy.hpp"
+#include "fw/best-route-strategy.hpp"
 #include "fw/random-strategy.hpp"
 
-#include "choose-strategy.hpp"
 #include "strategy-tester.hpp"
 #include "topology-tester.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
@@ -42,8 +40,6 @@
 namespace nfd {
 namespace fw {
 namespace tests {
-
-BOOST_AUTO_TEST_SUITE(Fw)
 
 template<typename S>
 class StrategyNackReturnFixture : public GlobalIoTimeFixture
@@ -84,11 +80,11 @@ public:
   shared_ptr<Face> face5;
 };
 
+BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_AUTO_TEST_SUITE(TestStrategyNackReturn)
 
 using Strategies = boost::mpl::vector<
-  BestRouteStrategy2,
-  MulticastStrategy,
+  BestRouteStrategy,
   RandomStrategy
 >;
 
@@ -112,7 +108,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(OneUpstream,
   pitEntry->getOutRecord(*this->face3)->setIncomingNack(nack3);
 
   auto f = [&] {
-    this->strategy.afterReceiveNack(FaceEndpoint(*this->face3, 0), nack3, pitEntry);
+    this->strategy.afterReceiveNack(nack3, FaceEndpoint(*this->face3, 0), pitEntry);
   };
   BOOST_REQUIRE(this->strategy.waitForAction(f, this->limitedIo, 2));
 
@@ -140,7 +136,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(TwoUpstreams,
   this->fib.addOrUpdateNextHop(fibEntry, *this->face4, 20);
   this->fib.addOrUpdateNextHop(fibEntry, *this->face5, 30);
 
-  auto interest1 = makeInterest("/aS9FAyUV19", 286);
+  auto interest1 = makeInterest("/aS9FAyUV19", false, nullopt, 286);
   shared_ptr<pit::Entry> pitEntry = this->pit.insert(*interest1).first;
   pitEntry->insertOrUpdateInRecord(*this->face1, *interest1);
   pitEntry->insertOrUpdateOutRecord(*this->face3, *interest1);
@@ -148,7 +144,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(TwoUpstreams,
 
   lp::Nack nack3 = makeNack(*interest1, lp::NackReason::CONGESTION);
   pitEntry->getOutRecord(*this->face3)->setIncomingNack(nack3);
-  this->strategy.afterReceiveNack(FaceEndpoint(*this->face3, 0), nack3, pitEntry);
+  this->strategy.afterReceiveNack(nack3, FaceEndpoint(*this->face3, 0), pitEntry);
 
   BOOST_CHECK_EQUAL(this->strategy.sendNackHistory.size(), 0); // don't send Nack until all upstreams have Nacked
 
@@ -156,7 +152,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(TwoUpstreams,
   pitEntry->getOutRecord(*this->face4)->setIncomingNack(nack4);
 
   auto f = [&] {
-    this->strategy.afterReceiveNack(FaceEndpoint(*this->face4, 0), nack4, pitEntry);
+    this->strategy.afterReceiveNack(nack4, FaceEndpoint(*this->face4, 0), pitEntry);
   };
   BOOST_REQUIRE(this->strategy.waitForAction(f, this->limitedIo));
 
@@ -190,7 +186,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(Timeout,
 
   lp::Nack nack4 = makeNack(*interest2, lp::NackReason::CONGESTION);
   pitEntry->getOutRecord(*this->face4)->setIncomingNack(nack4);
-  this->strategy.afterReceiveNack(FaceEndpoint(*this->face4, 0), nack4, pitEntry);
+  this->strategy.afterReceiveNack(nack4, FaceEndpoint(*this->face4, 0), pitEntry);
 
   BOOST_CHECK_EQUAL(this->strategy.sendNackHistory.size(), 0);
 }
@@ -265,11 +261,11 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(LiveDeadlock,
   ndn::Face& appD = topo.addAppFace("D", nodeD)->getClientFace();
 
   int nNacksA = 0, nNacksD = 0;
-  appA.expressInterest(*makeInterest("/P/1"), nullptr, bind([&nNacksA] { ++nNacksA; }), nullptr);
-  appD.expressInterest(*makeInterest("/P/1"), nullptr, bind([&nNacksD] { ++nNacksD; }), nullptr);
+  appA.expressInterest(*makeInterest("/P/1"), nullptr, [&] (auto&&...) { ++nNacksA; }, nullptr);
+  appD.expressInterest(*makeInterest("/P/1"), nullptr, [&] (auto&&...) { ++nNacksD; }, nullptr);
   this->advanceClocks(1_ms, 5_ms);
-  appA.expressInterest(*makeInterest("/P/1"), nullptr, bind([&nNacksA] { ++nNacksA; }), nullptr);
-  appD.expressInterest(*makeInterest("/P/1"), nullptr, bind([&nNacksD] { ++nNacksD; }), nullptr);
+  appA.expressInterest(*makeInterest("/P/1"), nullptr, [&] (auto&&...) { ++nNacksA; }, nullptr);
+  appD.expressInterest(*makeInterest("/P/1"), nullptr, [&] (auto&&...) { ++nNacksD; }, nullptr);
   this->advanceClocks(1_ms, 100_ms);
 
   // As long as at least one Nack arrives at each client, strategy behavior is correct.
@@ -319,9 +315,10 @@ using NackReasonCombinations = boost::mpl::vector<
   NackReasonCombination<lp::NackReason::NONE, lp::NackReason::NONE, lp::NackReason::NONE>
 >;
 
-// use BestRouteStrategy2 as a representative to test Nack reason combination
-BOOST_FIXTURE_TEST_CASE_TEMPLATE(CombineReasons, Combination, NackReasonCombinations,
-                                 StrategyNackReturnFixture<BestRouteStrategy2>)
+// use BestRouteStrategy as a representative to test Nack reason combination
+BOOST_FIXTURE_TEST_CASE_TEMPLATE(CombineReasons,
+                                 Combination, NackReasonCombinations,
+                                 StrategyNackReturnFixture<BestRouteStrategy>)
 {
   fib::Entry& fibEntry = *fib.insert(Name()).first;
   fib.addOrUpdateNextHop(fibEntry, *face3, 10);
@@ -336,13 +333,13 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(CombineReasons, Combination, NackReasonCombinat
 
   lp::Nack nack3 = makeNack(*interest1, Combination::getX());
   pitEntry->getOutRecord(*face3)->setIncomingNack(nack3);
-  strategy.afterReceiveNack(FaceEndpoint(*face3, 0), nack3, pitEntry);
+  strategy.afterReceiveNack(nack3, FaceEndpoint(*face3, 0), pitEntry);
 
   BOOST_CHECK_EQUAL(strategy.sendNackHistory.size(), 0);
 
   lp::Nack nack4 = makeNack(*interest1, Combination::getY());
   pitEntry->getOutRecord(*face4)->setIncomingNack(nack4);
-  strategy.afterReceiveNack(FaceEndpoint(*face4, 0), nack4, pitEntry);
+  strategy.afterReceiveNack(nack4, FaceEndpoint(*face4, 0), pitEntry);
 
   BOOST_REQUIRE_EQUAL(strategy.sendNackHistory.size(), 1);
   BOOST_CHECK_EQUAL(strategy.sendNackHistory[0].pitInterest.wireEncode(),

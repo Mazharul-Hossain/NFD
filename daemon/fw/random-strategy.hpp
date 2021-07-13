@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,11 +32,9 @@
 namespace nfd {
 namespace fw {
 
-/** \brief Randomly chooses a nexthop
+/** \brief A forwarding strategy that randomly chooses a nexthop
  *
- * Sends an incoming interest to a random outgoing face,
- * excluding the incoming face.
- *
+ *  Sends the incoming Interest to a random outgoing face, excluding the incoming face.
  */
 class RandomStrategy : public Strategy
                      , public ProcessNackTraits<RandomStrategy>
@@ -48,12 +46,13 @@ public:
   static const Name&
   getStrategyName();
 
+public: // triggers
   void
-  afterReceiveInterest(const FaceEndpoint& ingress, const Interest& interest,
+  afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
-  afterReceiveNack(const FaceEndpoint& ingress, const lp::Nack& nack,
+  afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                    const shared_ptr<pit::Entry>& pitEntry) override;
 
 private:
