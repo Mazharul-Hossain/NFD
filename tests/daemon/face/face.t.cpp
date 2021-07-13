@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -101,9 +101,9 @@ BOOST_AUTO_TEST_CASE(LinkServiceSendReceive)
   size_t nReceivedInterests = 0;
   size_t nReceivedData = 0;
   size_t nReceivedNacks = 0;
-  face1->afterReceiveInterest.connect(bind([&nReceivedInterests] { ++nReceivedInterests; }));
-  face1->afterReceiveData.connect(bind([&nReceivedData] { ++nReceivedData; }));
-  face1->afterReceiveNack.connect(bind([&nReceivedNacks] { ++nReceivedNacks; }));
+  face1->afterReceiveInterest.connect([&] (auto&&...) { ++nReceivedInterests; });
+  face1->afterReceiveData.connect([&] (auto&&...) { ++nReceivedData; });
+  face1->afterReceiveNack.connect([&] (auto&&...) { ++nReceivedNacks; });
 
   for (size_t i = 0; i < nInInterests; ++i) {
     face1->receiveInterest(*makeInterest("/JSQdqward4"), 0);
@@ -119,16 +119,16 @@ BOOST_AUTO_TEST_CASE(LinkServiceSendReceive)
   }
 
   for (size_t i = 0; i < nOutInterests; ++i) {
-    face1->sendInterest(*makeInterest("/XyUAFYQDmd"), 0);
+    face1->sendInterest(*makeInterest("/XyUAFYQDmd"));
   }
 
   for (size_t i = 0; i < nOutData; ++i) {
-    face1->sendData(*makeData("/GigPEtPH6"), 0);
+    face1->sendData(*makeData("/GigPEtPH6"));
   }
 
   for (size_t i = 0; i < nOutNacks; ++i) {
     face1->sendNack(makeNack(*makeInterest("/9xK6FbwIBM", false, nullopt, 365),
-                             lp::NackReason::CONGESTION), 0);
+                             lp::NackReason::CONGESTION));
   }
 
   BOOST_CHECK_EQUAL(face1->getCounters().nInInterests, nInInterests);

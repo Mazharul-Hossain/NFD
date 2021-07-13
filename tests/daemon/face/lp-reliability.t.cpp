@@ -62,25 +62,25 @@ public:
     }
 
     for (auto frag : frags) {
-      this->sendLpPacket(std::move(frag), 0);
+      this->sendLpPacket(std::move(frag));
     }
   }
 
 private:
   void
-  doSendInterest(const Interest&, const EndpointId&) final
+  doSendInterest(const Interest&) final
   {
     BOOST_FAIL("unexpected doSendInterest");
   }
 
   void
-  doSendData(const Data&, const EndpointId&) final
+  doSendData(const Data&) final
   {
     BOOST_FAIL("unexpected doSendData");
   }
 
   void
-  doSendNack(const lp::Nack&, const EndpointId&) final
+  doSendNack(const lp::Nack&) final
   {
     BOOST_FAIL("unexpected doSendNack");
   }
@@ -120,14 +120,12 @@ public:
 
   /** \brief make an LpPacket with fragment of specified size
    *  \param pktNum packet identifier, which can be extracted with \p getPktNum
-   *  \param payloadSize total payload size; if this is less than 4, 4 will be used
+   *  \param payloadSize total payload size; must be >= 4 and <= 255
    */
   static lp::Packet
   makeFrag(uint32_t pktNum, size_t payloadSize = 4)
   {
-    payloadSize = std::max(payloadSize, static_cast<size_t>(4));
-    BOOST_ASSERT(payloadSize <= 255);
-
+    BOOST_ASSERT(payloadSize >= 4 && payloadSize <= 255);
     lp::Packet pkt;
     ndn::Buffer buf(payloadSize);
     std::memcpy(buf.data(), &pktNum, sizeof(pktNum));
@@ -141,8 +139,7 @@ public:
   static uint32_t
   getPktNum(const lp::Packet& pkt)
   {
-    BOOST_ASSERT(pkt.has<lp::FragmentField>());
-
+    BOOST_REQUIRE(pkt.has<lp::FragmentField>());
     ndn::Buffer::const_iterator begin, end;
     std::tie(begin, end) = pkt.get<lp::FragmentField>();
     if (std::distance(begin, end) < 4) {
@@ -174,7 +171,7 @@ BOOST_AUTO_TEST_CASE(SendNoFragmentField)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 }
 
 BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
@@ -184,7 +181,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
 
   linkService->sendLpPackets({pkt1});
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 1);
-  lp::Packet cached1(transport->sentPackets.front().packet);
+  lp::Packet cached1(transport->sentPackets.front());
   BOOST_REQUIRE(cached1.has<lp::TxSequenceField>());
   BOOST_CHECK(cached1.has<lp::SequenceField>());
   lp::Sequence firstTxSeq = cached1.get<lp::TxSequenceField>();
@@ -193,7 +190,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+500ms
   // 1024 rto: 1000ms, txSeq: 2, started T+0ms, retx 0
@@ -215,7 +212,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+1250ms
   // 1024 rto: 1000ms, txSeq: 4, started T+1000ms, retx 1
@@ -233,7 +230,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+2250ms
   // 1024 rto: 1000ms, txSeq: 6, started T+2000ms, retx 2
@@ -252,7 +249,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+3250ms
   // 1024 rto: 1000ms, txSeq: 8, started T+3000ms, retx 3
@@ -271,7 +268,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+4250ms
   // 1024 rto: expired, removed
@@ -289,7 +286,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 1);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 1);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 1);
 
   // T+4750ms
   // 1024 rto: expired, removed
@@ -302,7 +299,7 @@ BOOST_AUTO_TEST_CASE(SendUnfragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 2);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 2);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 2);
 }
 
 BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
@@ -314,17 +311,17 @@ BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
   linkService->sendLpPackets({pkt1, pkt2, pkt3});
   BOOST_CHECK_EQUAL(transport->sentPackets.size(), 3);
 
-  lp::Packet cached1(transport->sentPackets.at(0).packet);
+  lp::Packet cached1(transport->sentPackets.at(0));
   BOOST_REQUIRE(cached1.has<lp::TxSequenceField>());
   BOOST_CHECK_EQUAL(cached1.get<lp::TxSequenceField>(), 2);
   BOOST_CHECK(cached1.has<lp::SequenceField>());
   BOOST_CHECK_EQUAL(getPktNum(cached1), 2048);
-  lp::Packet cached2(transport->sentPackets.at(1).packet);
+  lp::Packet cached2(transport->sentPackets.at(1));
   BOOST_REQUIRE(cached2.has<lp::TxSequenceField>());
   BOOST_CHECK_EQUAL(cached2.get<lp::TxSequenceField>(), 3);
   BOOST_CHECK(cached2.has<lp::SequenceField>());
   BOOST_CHECK_EQUAL(getPktNum(cached2), 2049);
-  lp::Packet cached3(transport->sentPackets.at(2).packet);
+  lp::Packet cached3(transport->sentPackets.at(2));
   BOOST_REQUIRE(cached3.has<lp::TxSequenceField>());
   BOOST_CHECK_EQUAL(cached3.get<lp::TxSequenceField>(), 4);
   BOOST_CHECK(cached3.has<lp::SequenceField>());
@@ -332,7 +329,7 @@ BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+0ms
   // 2048 rto: 1000ms, txSeq: 2, started T+0ms, retx 0
@@ -363,7 +360,7 @@ BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+250ms
   // 2048 rto: 1000ms, txSeq: 2, started T+0ms, retx 0
@@ -397,7 +394,7 @@ BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+500ms
   // 2048 rto: 1000ms, txSeq: 2, started T+0ms, retx 0
@@ -431,7 +428,7 @@ BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+750ms
   // 2048 rto: 1000ms, txSeq: 2, started T+0ms, retx 0
@@ -465,7 +462,7 @@ BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   // T+850ms
   // 2048 rto: expired, removed
@@ -479,7 +476,7 @@ BOOST_AUTO_TEST_CASE(SendFragmentedRetx)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 1);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 1);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 1);
 }
 
 BOOST_AUTO_TEST_CASE(AckUnknownTxSeq)
@@ -494,7 +491,7 @@ BOOST_AUTO_TEST_CASE(AckUnknownTxSeq)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   lp::Packet ackPkt;
   ackPkt.add<lp::AckField>(10101010);
@@ -508,7 +505,7 @@ BOOST_AUTO_TEST_CASE(AckUnknownTxSeq)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 }
 
 BOOST_AUTO_TEST_CASE(LossByGreaterAcks)
@@ -540,7 +537,7 @@ BOOST_AUTO_TEST_CASE(LossByGreaterAcks)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   lp::Packet ackPkt1;
   ackPkt1.add<lp::AckField>(0);
@@ -568,7 +565,7 @@ BOOST_AUTO_TEST_CASE(LossByGreaterAcks)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 1);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   lp::Packet ackPkt2;
   ackPkt2.add<lp::AckField>(2);
@@ -596,7 +593,7 @@ BOOST_AUTO_TEST_CASE(LossByGreaterAcks)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 2);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   lp::Packet ackPkt3;
   ackPkt3.add<lp::AckField>(1);
@@ -618,15 +615,14 @@ BOOST_AUTO_TEST_CASE(LossByGreaterAcks)
   BOOST_CHECK_EQUAL(reliability->m_unackedFrags.at(4).nGreaterSeqAcks, 0);
   BOOST_CHECK_EQUAL(reliability->m_firstUnackedFrag->first, 3);
   BOOST_CHECK_EQUAL(transport->sentPackets.size(), 6);
-  lp::Packet sentRetxPkt(transport->sentPackets.back().packet);
+  lp::Packet sentRetxPkt(transport->sentPackets.back());
   BOOST_REQUIRE(sentRetxPkt.has<lp::TxSequenceField>());
   BOOST_CHECK_EQUAL(sentRetxPkt.get<lp::TxSequenceField>(), 4);
-  BOOST_REQUIRE(sentRetxPkt.has<lp::FragmentField>());
   BOOST_CHECK_EQUAL(getPktNum(sentRetxPkt), 1);
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 3);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 
   lp::Packet ackPkt4;
   ackPkt4.add<lp::AckField>(4);
@@ -649,7 +645,7 @@ BOOST_AUTO_TEST_CASE(LossByGreaterAcks)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 3);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 1);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 }
 
 BOOST_AUTO_TEST_CASE(SkipFragmentsRemovedInRtt)
@@ -711,7 +707,7 @@ BOOST_AUTO_TEST_CASE(CancelLossNotificationOnAck)
   BOOST_CHECK_EQUAL(linkService->getCounters().nAcknowledged, 1);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetransmitted, 0);
   BOOST_CHECK_EQUAL(linkService->getCounters().nRetxExhausted, 0);
-  BOOST_CHECK_EQUAL(linkService->getCounters().nDroppedInterests, 0);
+  BOOST_CHECK_EQUAL(linkService->getCounters().nInterestsExceededRetx, 0);
 }
 
 BOOST_AUTO_TEST_CASE(ProcessIncomingPacket)
@@ -760,7 +756,7 @@ BOOST_AUTO_TEST_CASE(PiggybackAcks)
   linkService->sendLpPackets({pkt});
 
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 1);
-  lp::Packet sentPkt(transport->sentPackets.front().packet);
+  lp::Packet sentPkt(transport->sentPackets.front());
 
   BOOST_REQUIRE_EQUAL(sentPkt.count<lp::AckField>(), 3);
   BOOST_CHECK_EQUAL(sentPkt.get<lp::AckField>(0), 256);
@@ -790,7 +786,7 @@ BOOST_AUTO_TEST_CASE(PiggybackAcksMtu)
     linkService->sendLpPackets({pkt});
 
     BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), i);
-    lp::Packet sentPkt(transport->sentPackets.back().packet);
+    lp::Packet sentPkt(transport->sentPackets.back());
     BOOST_CHECK_EQUAL(getPktNum(sentPkt), i);
     BOOST_CHECK(sentPkt.has<lp::AckField>());
 
@@ -819,7 +815,7 @@ BOOST_AUTO_TEST_CASE(PiggybackAcksMtuNoSpace)
   linkService->sendLpPackets({pkt});
 
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 1);
-  lp::Packet sentPkt(transport->sentPackets.back().packet);
+  lp::Packet sentPkt(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(getPktNum(sentPkt), 1);
   BOOST_CHECK(!sentPkt.has<lp::AckField>());
 
@@ -891,7 +887,7 @@ BOOST_AUTO_TEST_CASE(IdleAckTimer)
   BOOST_CHECK_EQUAL(reliability->m_ackQueue.size(), 0);
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 1);
 
-  lp::Packet sentPkt(transport->sentPackets.back().packet);
+  lp::Packet sentPkt(transport->sentPackets.back());
   BOOST_CHECK(!sentPkt.has<lp::TxSequenceField>());
   for (lp::Sequence ack : sentPkt.list<lp::AckField>()) {
     BOOST_CHECK_EQUAL(expectedAcks.erase(ack), 1);
@@ -930,7 +926,7 @@ BOOST_AUTO_TEST_CASE(IdleAckTimerMtu)
   // 124 Acks per LpPacket, and it takes 5 LpPackets to carry 500 Acks.
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 5);
   for (size_t i = 0; i < 5; i++) {
-    lp::Packet sentPkt(transport->sentPackets[i].packet);
+    lp::Packet sentPkt(transport->sentPackets[i]);
     BOOST_CHECK(!sentPkt.has<lp::TxSequenceField>());
     BOOST_CHECK_EQUAL(sentPkt.count<lp::AckField>(), i == 4 ? 4 : 124);
     for (lp::Sequence ack : sentPkt.list<lp::AckField>()) {

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -88,7 +88,7 @@ BOOST_FIXTURE_TEST_SUITE(TestManagerBase, ManagerBaseFixture)
 BOOST_AUTO_TEST_CASE(RegisterCommandHandler)
 {
   bool wasCommandHandlerCalled = false;
-  auto handler = bind([&] { wasCommandHandlerCalled = true; });
+  auto handler = [&] (auto&&...) { wasCommandHandlerCalled = true; };
 
   m_manager.registerCommandHandler<TestCommandVoidParameters>("test-void", handler);
   m_manager.registerCommandHandler<TestCommandRequireName>("test-require-name", handler);
@@ -109,7 +109,7 @@ BOOST_AUTO_TEST_CASE(RegisterCommandHandler)
 BOOST_AUTO_TEST_CASE(RegisterStatusDataset)
 {
   bool isStatusDatasetCalled = false;
-  auto handler = bind([&] { isStatusDatasetCalled = true; });
+  auto handler = [&] (auto&&...) { isStatusDatasetCalled = true; };
 
   m_manager.registerStatusDatasetHandler("test-status", handler);
   setTopPrefix();
@@ -129,7 +129,7 @@ BOOST_AUTO_TEST_CASE(RegisterNotificationStream)
 
   BOOST_REQUIRE_EQUAL(m_responses.size(), 1);
   BOOST_CHECK_EQUAL(m_responses[0].getName(),
-                    Name("/localhost/nfd/test-module/test-notification/%FE%00"));
+                    Name("/localhost/nfd/test-module/test-notification").appendSequenceNumber(0));
 }
 
 BOOST_AUTO_TEST_CASE(ExtractRequester)

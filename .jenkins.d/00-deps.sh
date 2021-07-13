@@ -25,25 +25,17 @@ if has OSX $NODE_LABELS; then
 
 elif has Ubuntu $NODE_LABELS; then
     sudo apt-get -qq update
-    sudo apt-get -qy install g++ pkg-config python3-minimal \
+    sudo apt-get -qy install build-essential pkg-config python3-minimal \
                              libboost-all-dev libssl-dev libsqlite3-dev \
                              libpcap-dev libsystemd-dev
 
     if [[ $JOB_NAME == *"code-coverage" ]]; then
-        sudo apt-get -qy install gcovr lcov libgd-perl
+        sudo apt-get -qy install gcovr lcov
     fi
 
-elif has CentOS-7 $NODE_LABELS; then
-    sudo yum -y install yum-utils pkgconfig \
-                        openssl-devel libtranslit-icu \
-                        python-devel sqlite-devel \
-                        libpcap-devel systemd-devel \
-                        devtoolset-7-libasan-devel \
-                        devtoolset-7-liblsan-devel
-    sudo yum -y groupinstall 'Development Tools'
-
-    svn checkout https://github.com/cmscaltech/sandie-ndn/trunk/packaging/RPMS/x86_64/boost1_58_0
-    pushd boost1_58_0 >/dev/null
-    sudo rpm -Uv --replacepkgs --replacefiles boost-devel* boost-license* libboost_*
-    popd >/dev/null
+elif has CentOS-8 $NODE_LABELS; then
+    sudo dnf config-manager --enable powertools
+    sudo dnf -y install gcc-c++ libasan pkgconf-pkg-config python3 \
+                        boost-devel openssl-devel sqlite-devel \
+                        libpcap-devel systemd-devel
 fi

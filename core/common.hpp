@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,20 +28,20 @@
 
 #include "core/config.hpp"
 
-#ifdef WITH_TESTS
-#define VIRTUAL_WITH_TESTS virtual
-#define PUBLIC_WITH_TESTS_ELSE_PROTECTED public
-#define PUBLIC_WITH_TESTS_ELSE_PRIVATE public
-#define PROTECTED_WITH_TESTS_ELSE_PRIVATE protected
-#define OVERRIDE_WITH_TESTS_ELSE_FINAL override
-#define FINAL_UNLESS_WITH_TESTS
+#ifdef NFD_WITH_TESTS
+#define NFD_VIRTUAL_WITH_TESTS virtual
+#define NFD_PUBLIC_WITH_TESTS_ELSE_PROTECTED public
+#define NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE public
+#define NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE protected
+#define NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL override
+#define NFD_FINAL_UNLESS_WITH_TESTS
 #else
-#define VIRTUAL_WITH_TESTS
-#define PUBLIC_WITH_TESTS_ELSE_PROTECTED protected
-#define PUBLIC_WITH_TESTS_ELSE_PRIVATE private
-#define PROTECTED_WITH_TESTS_ELSE_PRIVATE private
-#define OVERRIDE_WITH_TESTS_ELSE_FINAL final
-#define FINAL_UNLESS_WITH_TESTS final
+#define NFD_VIRTUAL_WITH_TESTS
+#define NFD_PUBLIC_WITH_TESTS_ELSE_PROTECTED protected
+#define NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE private
+#define NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE private
+#define NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL final
+#define NFD_FINAL_UNLESS_WITH_TESTS final
 #endif
 
 #include <cstddef>
@@ -59,8 +59,6 @@
 #include <vector>
 
 #include <ndn-cxx/data.hpp>
-#include <ndn-cxx/delegation.hpp>
-#include <ndn-cxx/delegation-list.hpp>
 #include <ndn-cxx/interest.hpp>
 #include <ndn-cxx/name.hpp>
 #include <ndn-cxx/encoding/block.hpp>
@@ -68,14 +66,15 @@
 #include <ndn-cxx/net/face-uri.hpp>
 #include <ndn-cxx/util/backports.hpp>
 #include <ndn-cxx/util/exception.hpp>
+#include <ndn-cxx/util/optional.hpp>
 #include <ndn-cxx/util/scheduler.hpp>
 #include <ndn-cxx/util/signal.hpp>
 #include <ndn-cxx/util/time.hpp>
 
 #include <boost/asio.hpp>
 #include <boost/assert.hpp>
+#include <boost/core/noncopyable.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/noncopyable.hpp>
 #include <boost/property_tree/ptree.hpp>
 
 namespace nfd {
@@ -94,8 +93,6 @@ using std::static_pointer_cast;
 using std::dynamic_pointer_cast;
 using std::const_pointer_cast;
 
-using std::bind;
-
 using namespace std::string_literals;
 
 using ndn::optional;
@@ -104,8 +101,6 @@ using ndn::to_string;
 
 using ndn::Block;
 using ndn::Data;
-using ndn::Delegation;
-using ndn::DelegationList;
 using ndn::FaceUri;
 using ndn::Interest;
 using ndn::Name;

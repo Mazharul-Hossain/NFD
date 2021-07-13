@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -53,17 +53,59 @@ BOOST_AUTO_TEST_CASE(Basic)
   BOOST_CHECK_EQUAL(dnl.has(nameB, nonce1), false);
 }
 
-BOOST_AUTO_TEST_CASE(MinLifetime)
+BOOST_AUTO_TEST_CASE(NoDuplicates)
 {
-  BOOST_CHECK_THROW(DeadNonceList dnl(time::milliseconds::zero()), std::invalid_argument);
+  Name nameA("ndn:/A");
+  const Interest::Nonce nonce1(0x53b4eaa8);
+  const Interest::Nonce nonce2(0x63b4eaa8);
+  const Interest::Nonce nonce3(0x73b4eaa8);
+  const Interest::Nonce nonce4(0x83b4eaa8);
+  const Interest::Nonce nonce5(0x93b4eaa8);
+
+  DeadNonceList dnl;
+  BOOST_CHECK_EQUAL(dnl.size(), 0);
+
+  dnl.m_capacity = 4;
+  dnl.add(nameA, nonce1);
+  dnl.add(nameA, nonce2);
+  dnl.add(nameA, nonce3);
+  dnl.add(nameA, nonce4);
+  BOOST_CHECK_EQUAL(dnl.size(), 4);
+
+  dnl.add(nameA, nonce1);
+  BOOST_CHECK_EQUAL(dnl.size(), 4);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce1), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce2), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce3), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce4), true);
+
+  dnl.add(nameA, nonce5);
+  BOOST_CHECK_EQUAL(dnl.size(), 4);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce1), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce2), false);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce3), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce4), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce5), true);
+
+  dnl.add(nameA, nonce5);
+  BOOST_CHECK_EQUAL(dnl.size(), 4);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce1), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce2), false);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce3), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce4), true);
+  BOOST_CHECK_EQUAL(dnl.has(nameA, nonce5), true);
 }
 
-/// A Fixture that periodically inserts Nonces
+BOOST_AUTO_TEST_CASE(MinLifetime)
+{
+  BOOST_CHECK_THROW(DeadNonceList(0_ms), std::invalid_argument);
+}
+
+/// A fixture that periodically inserts Nonces
 class PeriodicalInsertionFixture : public GlobalIoTimeFixture
 {
 protected:
   PeriodicalInsertionFixture()
-    : dnl(LIFETIME)
   {
     addNonce();
   }
@@ -81,31 +123,30 @@ protected:
       dnl.add(name, ++lastNonce);
     }
 
-    if (addNonceInterval > 0_ns) {
-      addNonceEvent = getScheduler().schedule(addNonceInterval, [this] { addNonce(); });
-    }
+    addNonceEvent = getScheduler().schedule(ADD_INTERVAL, [this] { addNonce(); });
   }
 
   /** \brief advance clocks by LIFETIME*t
    */
   void
-  advanceClocksByLifetime(float t)
+  advanceClocksByLifetime(double t)
   {
-    advanceClocks(timeUnit, time::duration_cast<time::nanoseconds>(LIFETIME * t));
+    advanceClocks(ADD_INTERVAL / 2, time::duration_cast<time::nanoseconds>(LIFETIME * t));
   }
 
 protected:
-  static const time::nanoseconds LIFETIME;
-  DeadNonceList dnl;
+  static constexpr time::nanoseconds LIFETIME = 200_ms;
+  static constexpr time::nanoseconds ADD_INTERVAL = LIFETIME / DeadNonceList::EXPECTED_MARK_COUNT;
+
+  DeadNonceList dnl{LIFETIME};
   Name name = "/N";
   uint32_t lastNonce = 0;
   size_t addNonceBatch = 0;
-  const time::nanoseconds addNonceInterval = LIFETIME / DeadNonceList::EXPECTED_MARK_COUNT;
-  const time::nanoseconds timeUnit = addNonceInterval / 2;
   scheduler::ScopedEventId addNonceEvent;
 };
 
-const time::nanoseconds PeriodicalInsertionFixture::LIFETIME = 200_ms;
+const time::nanoseconds PeriodicalInsertionFixture::LIFETIME;
+const time::nanoseconds PeriodicalInsertionFixture::ADD_INTERVAL;
 
 BOOST_FIXTURE_TEST_CASE(Lifetime, PeriodicalInsertionFixture)
 {

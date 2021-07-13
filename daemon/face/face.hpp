@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,6 +34,8 @@
 namespace nfd {
 namespace face {
 
+class Channel;
+
 /** \brief indicates the state of a face
  */
 typedef TransportState FaceState;
@@ -49,7 +51,7 @@ typedef TransportState FaceState;
  *  LinkService is the upper part, which translates between network-layer packets
  *  and TLV blocks, and may provide additional services such as fragmentation and reassembly.
  */
-class Face FINAL_UNLESS_WITH_TESTS : public std::enable_shared_from_this<Face>, noncopyable
+class Face NFD_FINAL_UNLESS_WITH_TESTS : public std::enable_shared_from_this<Face>, noncopyable
 {
 public:
   Face(unique_ptr<LinkService> service, unique_ptr<Transport> transport);
@@ -73,20 +75,20 @@ public:
   close();
 
 public: // upper interface connected to forwarding
-  /** \brief send Interest to \p endpointId
+  /** \brief send Interest
    */
   void
-  sendInterest(const Interest& interest, const EndpointId& endpointId);
+  sendInterest(const Interest& interest);
 
-  /** \brief send Data to \p endpointId
+  /** \brief send Data
    */
   void
-  sendData(const Data& data, const EndpointId& endpointId);
+  sendData(const Data& data);
 
-  /** \brief send Nack to \p endpointId
+  /** \brief send Nack
    */
   void
-  sendNack(const lp::Nack& nack, const EndpointId& endpointId);
+  sendNack(const lp::Nack& nack);
 
   /** \brief signals on Interest received
    */
@@ -169,13 +171,41 @@ public: // properties
   getExpirationTime() const;
 
   const FaceCounters&
-  getCounters() const;
+  getCounters() const
+  {
+    return m_counters;
+  }
+
+  FaceCounters&
+  getCounters()
+  {
+    return m_counters;
+  }
+
+  /**
+   * \brief Get channel on which face was created (unicast) or the associated channel (multicast)
+   */
+  weak_ptr<Channel>
+  getChannel() const
+  {
+    return m_channel;
+  }
+
+  /**
+   * \brief Set channel on which face was created (unicast) or the associated channel (multicast)
+   */
+  void
+  setChannel(weak_ptr<Channel> channel)
+  {
+    m_channel = std::move(channel);
+  }
 
 private:
   FaceId m_id;
   unique_ptr<LinkService> m_service;
   unique_ptr<Transport> m_transport;
   FaceCounters m_counters;
+  weak_ptr<Channel> m_channel;
 };
 
 inline LinkService*
@@ -197,21 +227,21 @@ Face::close()
 }
 
 inline void
-Face::sendInterest(const Interest& interest, const EndpointId& endpointId)
+Face::sendInterest(const Interest& interest)
 {
-  m_service->sendInterest(interest, endpointId);
+  m_service->sendInterest(interest);
 }
 
 inline void
-Face::sendData(const Data& data, const EndpointId& endpointId)
+Face::sendData(const Data& data)
 {
-  m_service->sendData(data, endpointId);
+  m_service->sendData(data);
 }
 
 inline void
-Face::sendNack(const lp::Nack& nack, const EndpointId& endpointId)
+Face::sendNack(const lp::Nack& nack)
 {
-  m_service->sendNack(nack, endpointId);
+  m_service->sendNack(nack);
 }
 
 inline FaceId
@@ -278,12 +308,6 @@ inline time::steady_clock::TimePoint
 Face::getExpirationTime() const
 {
   return m_transport->getExpirationTime();
-}
-
-inline const FaceCounters&
-Face::getCounters() const
-{
-  return m_counters;
 }
 
 std::ostream&

@@ -1,6 +1,6 @@
 # -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 """
-Copyright (c) 2014-2019,  Regents of the University of California,
+Copyright (c) 2014-2021,  Regents of the University of California,
                           Arizona Board of Regents,
                           Colorado State University,
                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,7 +31,7 @@ from waflib import Utils, Logs, Errors
 from waflib.Configure import conf
 from waflib.TaskGen import feature, after_method
 
-VERSION = '0.7.0'
+VERSION = '0.7.1'
 APPNAME = 'nfd'
 BUGREPORT = 'https://redmine.named-data.net/projects/nfd'
 URL = 'https://named-data.net/doc/NFD/'
@@ -40,27 +40,27 @@ GIT_TAG_PREFIX = 'NFD-'
 
 def options(opt):
     opt.load(['compiler_cxx', 'gnu_dirs'])
-    opt.load(['default-compiler-flags', 'compiler-features',
+    opt.load(['default-compiler-flags',
               'coverage', 'pch', 'sanitizers', 'boost',
               'dependency-checker', 'unix-socket', 'websocket',
               'doxygen', 'sphinx_build'],
              tooldir=['.waf-tools'])
 
-    nfdopt = opt.add_option_group('NFD Options')
+    optgrp = opt.add_option_group('NFD Options')
 
-    opt.addUnixOptions(nfdopt)
-    opt.addDependencyOptions(nfdopt, 'libresolv')
-    opt.addDependencyOptions(nfdopt, 'librt')
-    opt.addDependencyOptions(nfdopt, 'libpcap')
-    nfdopt.add_option('--without-libpcap', action='store_true', default=False,
+    opt.addUnixOptions(optgrp)
+    opt.addDependencyOptions(optgrp, 'libresolv')
+    opt.addDependencyOptions(optgrp, 'librt')
+    opt.addDependencyOptions(optgrp, 'libpcap')
+    optgrp.add_option('--without-libpcap', action='store_true', default=False,
                       help='Disable libpcap (Ethernet face support will be disabled)')
-    nfdopt.add_option('--without-systemd', action='store_true', default=False,
+    optgrp.add_option('--without-systemd', action='store_true', default=False,
                       help='Disable systemd integration')
-    opt.addWebsocketOptions(nfdopt)
+    opt.addWebsocketOptions(optgrp)
 
-    nfdopt.add_option('--with-tests', action='store_true', default=False,
+    optgrp.add_option('--with-tests', action='store_true', default=False,
                       help='Build unit tests')
-    nfdopt.add_option('--with-other-tests', action='store_true', default=False,
+    optgrp.add_option('--with-other-tests', action='store_true', default=False,
                       help='Build other tests')
     nfdopt.add_option('--with-boost-python', action='store_true', default=False,
                       help='Build unit tests')
@@ -94,8 +94,8 @@ int main()
 
 def configure(conf):
     conf.load(['compiler_cxx', 'gnu_dirs',
-               'default-compiler-flags', 'compiler-features',
-               'pch', 'boost', 'dependency-checker', 'websocket',
+               'default-compiler-flags', 'boost',
+               'pch', 'dependency-checker', 'websocket',
                'doxygen', 'sphinx_build'])
 
     conf.env.WITH_TESTS = conf.options.with_tests
@@ -103,6 +103,7 @@ def configure(conf):
     conf.env.WITH_BOOST_PYTHON = conf.options.with_boost_python
 
     conf.find_program('bash', var='BASH')
+    conf.find_program('dot', var='DOT', mandatory=False)
 
     conf.check_cfg(package='libndn-cxx', args=['--cflags', '--libs'], uselib_store='NDN_CXX',
                    pkg_config_path=os.environ.get('PKG_CONFIG_PATH', '%s/pkgconfig' % conf.env.LIBDIR))
@@ -125,9 +126,13 @@ def configure(conf):
 
     conf.check_boost(lib=boost_libs, mt=True)
     if conf.env.BOOST_VERSION_NUMBER < 105800:
-        conf.fatal('Minimum required Boost version is 1.58.0\n'
-                   'Please upgrade your distribution or manually install a newer version of Boost'
-                   ' (https://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)')
+        conf.fatal('The minimum supported version of Boost is 1.65.1.\n'
+                   'Please upgrade your distribution or manually install a newer version of Boost.\n'
+                   'For more information, see https://redmine.named-data.net/projects/nfd/wiki/Boost')
+    elif conf.env.BOOST_VERSION_NUMBER < 106501:
+        Logs.warn('WARNING: Using a version of Boost older than 1.65.1 is not officially supported and may not work.\n'
+                  'If you encounter any problems, please upgrade your distribution or manually install a newer version of Boost.\n'
+                  'For more information, see https://redmine.named-data.net/projects/nfd/wiki/Boost')
 
     if conf.env.WITH_BOOST_PYTHON:
         # boost_libs.append('python')
@@ -175,7 +180,7 @@ def configure(conf):
     # or conf.define_cond().  Everything that was added directly to conf.env.DEFINES
     # will not appear in the config header, but will instead be passed directly to the
     # compiler on the command line.
-    conf.write_config_header('core/config.hpp')
+    conf.write_config_header('core/config.hpp', define_prefix='NFD_')
 
 
 def build(bld):
@@ -318,6 +323,7 @@ def doxygen(bld):
         target=['docs/doxygen.conf',
                 'docs/named_data_theme/named_data_footer-with-analytics.html'],
         VERSION=VERSION,
+        HAVE_DOT='YES' if bld.env.DOT else 'NO',
         HTML_FOOTER='../build/docs/named_data_theme/named_data_footer-with-analytics.html' \
             if os.getenv('GOOGLE_ANALYTICS', None) \
             else '../docs/named_data_theme/named_data_footer.html',
@@ -365,7 +371,7 @@ def version(ctx):
     except (OSError, subprocess.CalledProcessError):
         pass
 
-    versionFile = ctx.path.find_node('VERSION')
+    versionFile = ctx.path.find_node('VERSION.info')
     if not gotVersionFromGit and versionFile is not None:
         try:
             Context.g_module.VERSION = versionFile.read()
@@ -382,7 +388,7 @@ def version(ctx):
         except EnvironmentError as e:
             Logs.warn('%s exists but is not readable (%s)' % (versionFile, e.strerror))
     else:
-        versionFile = ctx.path.make_node('VERSION')
+        versionFile = ctx.path.make_node('VERSION.info')
 
     try:
         versionFile.write(Context.g_module.VERSION)

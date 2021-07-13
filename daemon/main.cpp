@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -50,13 +50,13 @@
 #include <ndn-cxx/util/ostream-joiner.hpp>
 #include <ndn-cxx/version.hpp>
 
-#ifdef HAVE_LIBPCAP
+#ifdef NFD_HAVE_LIBPCAP
 #include <pcap/pcap.h>
 #endif
-#ifdef HAVE_SYSTEMD
+#ifdef NFD_HAVE_SYSTEMD
 #include <systemd/sd-daemon.h>
 #endif
-#ifdef HAVE_WEBSOCKET
+#ifdef NFD_HAVE_WEBSOCKET
 #include <websocketpp/version.hpp>
 #endif
 
@@ -82,15 +82,15 @@ public:
   NfdRunner(const std::string& configFile)
     : m_nfd(configFile, m_nfdKeyChain)
     , m_configFile(configFile)
-    , m_terminationSignalSet(getGlobalIoService())
-    , m_reloadSignalSet(getGlobalIoService())
+    , m_terminateSignals(getGlobalIoService(), SIGINT, SIGTERM)
+    , m_reloadSignals(getGlobalIoService(), SIGHUP)
   {
-    m_terminationSignalSet.add(SIGINT);
-    m_terminationSignalSet.add(SIGTERM);
-    m_terminationSignalSet.async_wait(bind(&NfdRunner::terminate, this, _1, _2));
-
-    m_reloadSignalSet.add(SIGHUP);
-    m_reloadSignalSet.async_wait(bind(&NfdRunner::reload, this, _1, _2));
+    m_terminateSignals.async_wait([this] (auto&&... args) {
+      terminate(std::forward<decltype(args)>(args)...);
+    });
+    m_reloadSignals.async_wait([this] (auto&&... args) {
+      reload(std::forward<decltype(args)>(args)...);
+    });
   }
 
   void
@@ -180,7 +180,7 @@ public:
   static void
   systemdNotify(const char* state)
   {
-#ifdef HAVE_SYSTEMD
+#ifdef NFD_HAVE_SYSTEMD
     sd_notify(0, state);
 #endif
   }
@@ -210,7 +210,9 @@ private:
     m_nfd.reloadConfigFile();
     systemdNotify("READY=1");
 
-    m_reloadSignalSet.async_wait(bind(&NfdRunner::reload, this, _1, _2));
+    m_reloadSignals.async_wait([this] (auto&&... args) {
+      reload(std::forward<decltype(args)>(args)...);
+    });
   }
 
 private:
@@ -218,8 +220,8 @@ private:
   Nfd                     m_nfd;
   std::string             m_configFile;
 
-  boost::asio::signal_set m_terminationSignalSet;
-  boost::asio::signal_set m_reloadSignalSet;
+  boost::asio::signal_set m_terminateSignals;
+  boost::asio::signal_set m_reloadSignals;
 };
 
 static void
@@ -247,14 +249,14 @@ main(int argc, char** argv)
 {
   using namespace nfd;
 
-  std::string configFile = DEFAULT_CONFIG_FILE;
+  std::string configFile = NFD_DEFAULT_CONFIG_FILE;
 
   po::options_description description("Options");
   description.add_options()
     ("help,h",    "print this message and exit")
     ("version,V", "show version information and exit")
     ("config,c",  po::value<std::string>(&configFile),
-                  "path to configuration file (default: " DEFAULT_CONFIG_FILE ")")
+                  "path to configuration file (default: " NFD_DEFAULT_CONFIG_FILE ")")
     ("modules,m", "list available logging modules")
     ;
 
@@ -292,13 +294,13 @@ main(int argc, char** argv)
       "." + to_string(BOOST_VERSION / 100 % 1000) +
       "." + to_string(BOOST_VERSION % 100);
   const std::string pcapBuildInfo =
-#ifdef HAVE_LIBPCAP
+#ifdef NFD_HAVE_LIBPCAP
       "with " + std::string(pcap_lib_version());
 #else
       "without libpcap";
 #endif
   const std::string wsBuildInfo =
-#ifdef HAVE_WEBSOCKET
+#ifdef NFD_HAVE_WEBSOCKET
       "with WebSocket++ version " + to_string(websocketpp::major_version) +
       "." + to_string(websocketpp::minor_version) +
       "." + to_string(websocketpp::patch_version);

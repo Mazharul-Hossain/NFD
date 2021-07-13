@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,7 +23,7 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "fw/best-route-strategy2.hpp"
+#include "fw/best-route-strategy.hpp"
 
 #include "tests/daemon/global-io-fixture.hpp"
 #include "topology-tester.hpp"
@@ -67,8 +67,8 @@ public:
     nodeC = topo.addForwarder("click");
     nodeS = topo.addForwarder("spurs");
     nodeQ = topo.addForwarder("serverQ");
-    for (TopologyNode node : {nodeA, nodeH, nodeT, nodeP, nodeC, nodeS, nodeQ}) {
-      topo.setStrategy<BestRouteStrategy2>(node);
+    for (auto node : {nodeA, nodeH, nodeT, nodeP, nodeC, nodeS, nodeQ}) {
+      topo.setStrategy<BestRouteStrategy>(node);
     }
 
     topo.getForwarder(nodeH).getNetworkRegionTable().insert("/arizona/cs/hobo");
@@ -114,8 +114,8 @@ public:
   shared_ptr<TopologyLink> linkAH, linkHT, linkTP, linkHC, linkCS, linkSQ;
   shared_ptr<TopologyAppLink> consumerA, producerP, producerQ;
 
-  Delegation delTelia = {10, "/telia/terabits"};
-  Delegation delUcla = {20, "/ucla/cs"};
+  ndn::Delegation delTelia = {10, "/telia/terabits"};
+  ndn::Delegation delUcla = {20, "/ucla/cs"};
 };
 
 BOOST_FIXTURE_TEST_SUITE(NdnsimTeliaUclaTopology, NdnsimTeliaUclaTopologyFixture)
@@ -128,12 +128,12 @@ BOOST_AUTO_TEST_CASE(FetchTelia)
   // A forwards Interest according to default route, no change to forwarding hint
   BOOST_CHECK_EQUAL(linkAH->getFace(nodeA).getCounters().nOutInterests, 1);
   const Interest& interestAH = topo.getPcap(linkAH->getFace(nodeA)).sentInterests.at(0);
-  BOOST_CHECK_EQUAL(interestAH.getForwardingHint(), DelegationList({delTelia, delUcla}));
+  BOOST_CHECK_EQUAL(interestAH.getForwardingHint(), ndn::DelegationList({delTelia, delUcla}));
 
   // H prefers T, no change to forwarding hint
   BOOST_CHECK_EQUAL(linkHT->getFace(nodeH).getCounters().nOutInterests, 1);
   const Interest& interestHT = topo.getPcap(linkHT->getFace(nodeH)).sentInterests.at(0);
-  BOOST_CHECK_EQUAL(interestHT.getForwardingHint(), DelegationList({delTelia, delUcla}));
+  BOOST_CHECK_EQUAL(interestHT.getForwardingHint(), ndn::DelegationList({delTelia, delUcla}));
 
   // T forwards to P, forwarding hint stripped when Interest reaches producer region
   BOOST_CHECK_EQUAL(linkTP->getFace(nodeT).getCounters().nOutInterests, 1);
@@ -157,17 +157,17 @@ BOOST_AUTO_TEST_CASE(FetchUcla)
   // A forwards Interest according to default route, no change to forwarding hint
   BOOST_CHECK_EQUAL(linkAH->getFace(nodeA).getCounters().nOutInterests, 1);
   const Interest& interestAH = topo.getPcap(linkAH->getFace(nodeA)).sentInterests.at(0);
-  BOOST_CHECK_EQUAL(interestAH.getForwardingHint(), DelegationList({delTelia, delUcla}));
+  BOOST_CHECK_EQUAL(interestAH.getForwardingHint(), ndn::DelegationList({delTelia, delUcla}));
 
   // H forwards to C, no change to forwarding hint
   BOOST_CHECK_EQUAL(linkHC->getFace(nodeH).getCounters().nOutInterests, 1);
   const Interest& interestHC = topo.getPcap(linkHC->getFace(nodeH)).sentInterests.at(0);
-  BOOST_CHECK_EQUAL(interestHC.getForwardingHint(), DelegationList({delTelia, delUcla}));
+  BOOST_CHECK_EQUAL(interestHC.getForwardingHint(), ndn::DelegationList({delTelia, delUcla}));
 
   // C forwards to S, no change to forwarding hint
   BOOST_CHECK_EQUAL(linkCS->getFace(nodeC).getCounters().nOutInterests, 1);
   const Interest& interestCS = topo.getPcap(linkCS->getFace(nodeC)).sentInterests.at(0);
-  BOOST_CHECK_EQUAL(interestCS.getForwardingHint(), DelegationList({delTelia, delUcla}));
+  BOOST_CHECK_EQUAL(interestCS.getForwardingHint(), ndn::DelegationList({delTelia, delUcla}));
 
   // S forwards to Q, forwarding hint stripped when Interest reaches producer region
   BOOST_CHECK_EQUAL(linkSQ->getFace(nodeS).getCounters().nOutInterests, 1);

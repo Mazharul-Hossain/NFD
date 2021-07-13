@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,7 +33,7 @@
 #include <ndn-cxx/lp/tags.hpp>
 #include <ndn-cxx/mgmt/nfd/face-status.hpp>
 #include <ndn-cxx/mgmt/nfd/rib-entry.hpp>
-#include <ndn-cxx/security/v2/certificate-fetcher-direct-fetch.hpp>
+#include <ndn-cxx/security/certificate-fetcher-direct-fetch.hpp>
 
 namespace nfd {
 
@@ -57,16 +57,16 @@ RibManager::RibManager(rib::Rib& rib, ndn::Face& face, ndn::KeyChain& keyChain,
   , m_dispatcher(dispatcher)
   , m_faceMonitor(face)
   , m_localhostValidator(face)
-  , m_localhopValidator(make_unique<ndn::security::v2::CertificateFetcherDirectFetch>(face))
-  , m_paValidator(make_unique<ndn::security::v2::CertificateFetcherDirectFetch>(face))
+  , m_localhopValidator(make_unique<ndn::security::CertificateFetcherDirectFetch>(face))
+  , m_paValidator(make_unique<ndn::security::CertificateFetcherDirectFetch>(face))
   , m_isLocalhopEnabled(false)
 {
   registerCommandHandler<ndn::nfd::RibRegisterCommand>("register",
-    bind(&RibManager::registerEntry, this, _2, _3, _4, _5));
+    std::bind(&RibManager::registerEntry, this, _2, _3, _4, _5));
   registerCommandHandler<ndn::nfd::RibUnregisterCommand>("unregister",
-    bind(&RibManager::unregisterEntry, this, _2, _3, _4, _5));
+    std::bind(&RibManager::unregisterEntry, this, _2, _3, _4, _5));
 
-  registerStatusDatasetHandler("list", bind(&RibManager::listEntries, this, _1, _2, _3));
+  registerStatusDatasetHandler("list", std::bind(&RibManager::listEntries, this, _1, _2, _3));
 }
 
 void
@@ -104,7 +104,7 @@ RibManager::registerWithNfd()
   }
 
   NFD_LOG_INFO("Start monitoring face create/destroy events");
-  m_faceMonitor.onNotification.connect(bind(&RibManager::onNotification, this, _1));
+  m_faceMonitor.onNotification.connect([this] (const auto& notif) { onNotification(notif); });
   m_faceMonitor.start();
 
   scheduleActiveFaceFetch(ACTIVE_FACE_FETCH_INTERVAL);
@@ -248,7 +248,7 @@ RibManager::registerEntry(const Name& topPrefix, const Interest& interest,
 }
 
 void
-RibManager::unregisterEntry(const Name& topPrefix, const Interest& interest,
+RibManager::unregisterEntry(const Name&, const Interest& interest,
                             ControlParameters parameters,
                             const ndn::mgmt::CommandContinuation& done)
 {
@@ -265,7 +265,7 @@ RibManager::unregisterEntry(const Name& topPrefix, const Interest& interest,
 }
 
 void
-RibManager::listEntries(const Name& topPrefix, const Interest& interest,
+RibManager::listEntries(const Name&, const Interest& interest,
                         ndn::mgmt::StatusDatasetContext& context)
 {
   auto now = time::steady_clock::now();
@@ -304,7 +304,7 @@ RibManager::setFaceForSelfRegistration(const Interest& request, ControlParameter
 }
 
 ndn::mgmt::Authorization
-RibManager::makeAuthorization(const std::string& verb)
+RibManager::makeAuthorization(const std::string&)
 {
   return [this] (const Name& prefix, const Interest& interest,
                  const ndn::mgmt::ControlParameters* params,
@@ -316,8 +316,8 @@ RibManager::makeAuthorization(const std::string& verb)
 
     auto& validator = prefix == LOCALHOST_TOP_PREFIX ? m_localhostValidator : m_localhopValidator;
     validator.validate(interest,
-                       bind([&interest, this, accept] { extractRequester(interest, accept); }),
-                       bind([reject] { reject(ndn::mgmt::RejectReply::STATUS403); }));
+                       [&interest, accept] (auto&&...) { extractRequester(interest, accept); },
+                       [reject] (auto&&...) { reject(ndn::mgmt::RejectReply::STATUS403); });
   };
 }
 
@@ -370,7 +370,7 @@ RibManager::slAnnounce(const ndn::PrefixAnnouncement& pa, uint64_t faceId,
           cb(res);
         });
     },
-    [=] (const Data&, ndn::security::v2::ValidationError err) {
+    [=] (const Data&, ndn::security::ValidationError err) {
       NFD_LOG_INFO("slAnnounce " << pa.getAnnouncedName() << " " << faceId <<
                    " validation error: " << err);
       cb(SlAnnounceResult::VALIDATION_FAILURE);
@@ -429,8 +429,8 @@ RibManager::fetchActiveFaces()
   NFD_LOG_DEBUG("Fetching active faces");
 
   m_nfdController.fetch<ndn::nfd::FaceDataset>(
-    bind(&RibManager::removeInvalidFaces, this, _1),
-    bind(&RibManager::onFetchActiveFacesFailure, this, _1, _2),
+    std::bind(&RibManager::removeInvalidFaces, this, _1),
+    std::bind(&RibManager::onFetchActiveFacesFailure, this, _1, _2),
     ndn::nfd::CommandOptions());
 }
 

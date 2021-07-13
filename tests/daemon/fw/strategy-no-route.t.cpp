@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,15 +24,14 @@
  */
 
 /** \file
- *  This test suite checks that a strategy returns Nack-NoRoute
- *  when there is no usable FIB nexthop.
+ *  This test suite checks that a strategy returns Nack-NoRoute when there are
+ *  no usable FIB nexthops.
  */
 
-// Strategies returning Nack-NoRoute when there is no usable FIB nexthop,
+// Strategies returning Nack-NoRoute when there are no usable FIB nexthops,
 // sorted alphabetically.
 #include "fw/asf-strategy.hpp"
-#include "fw/best-route-strategy2.hpp"
-#include "fw/multicast-strategy.hpp"
+#include "fw/best-route-strategy.hpp"
 #include "fw/random-strategy.hpp"
 
 #include "tests/test-common.hpp"
@@ -40,7 +39,6 @@
 #include "choose-strategy.hpp"
 #include "strategy-tester.hpp"
 
-#include <boost/mpl/copy_if.hpp>
 #include <boost/mpl/vector.hpp>
 
 namespace nfd {
@@ -147,21 +145,17 @@ using Tests = boost::mpl::vector<
   Test<AsfStrategy, NextHopIsDownstream<AsfStrategy>>,
   Test<AsfStrategy, NextHopViolatesScope<AsfStrategy>>,
 
-  Test<BestRouteStrategy2, EmptyNextHopList<BestRouteStrategy2>>,
-  Test<BestRouteStrategy2, NextHopIsDownstream<BestRouteStrategy2>>,
-  Test<BestRouteStrategy2, NextHopViolatesScope<BestRouteStrategy2>>,
-
-  Test<MulticastStrategy, EmptyNextHopList<MulticastStrategy>>,
-  Test<MulticastStrategy, NextHopIsDownstream<MulticastStrategy>>,
-  Test<MulticastStrategy, NextHopViolatesScope<MulticastStrategy>>,
+  Test<BestRouteStrategy, EmptyNextHopList<BestRouteStrategy>>,
+  Test<BestRouteStrategy, NextHopIsDownstream<BestRouteStrategy>>,
+  Test<BestRouteStrategy, NextHopViolatesScope<BestRouteStrategy>>,
 
   Test<RandomStrategy, EmptyNextHopList<RandomStrategy>>,
   Test<RandomStrategy, NextHopIsDownstream<RandomStrategy>>,
   Test<RandomStrategy, NextHopViolatesScope<RandomStrategy>>
 >;
 
-BOOST_FIXTURE_TEST_CASE_TEMPLATE(IncomingInterest, T, Tests,
-                                 StrategyNoRouteFixture<typename T::Strategy>)
+BOOST_FIXTURE_TEST_CASE_TEMPLATE(IncomingInterest,
+                                 T, Tests, StrategyNoRouteFixture<typename T::Strategy>)
 {
   typename T::Case scenario;
   scenario.insertFibEntry(this);
@@ -171,7 +165,7 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(IncomingInterest, T, Tests,
   pitEntry->insertOrUpdateInRecord(*this->face1, *interest);
 
   auto f = [&] {
-    this->strategy.afterReceiveInterest(FaceEndpoint(*this->face1, 0), *interest, pitEntry);
+    this->strategy.afterReceiveInterest(*interest, FaceEndpoint(*this->face1, 0), pitEntry);
   };
   BOOST_REQUIRE(this->strategy.waitForAction(f, this->limitedIo, 2));
 
