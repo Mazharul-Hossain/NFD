@@ -213,7 +213,7 @@ namespace nfd {
                     const auto &name_prefix = pitEntry->getName();
                     namespace python = boost::python;
                     try {
-                        object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix, ingress.face,
+                        python::object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix, ingress.face,
                                                                                               time::steady_clock::now() -
                                                                                               outRecord->getLastRenewed());
                     }
@@ -318,10 +318,10 @@ namespace nfd {
                 const auto &name_prefix = fibEntry.getPrefix();
                 namespace python = boost::python;
                 try {
-                    object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
-                    std::string prefix_face_status = extract<str>(result);
+                    python::object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
+                    std::string prefix_face_status = extract<std::string>(result);
                     if (prefix_face_status == "RESULT_READY") {
-                        object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
+                        python::object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
                         Face best_prefix_face = extract<Face>(result);
                     }
                 } catch (const python::error_already_set &) {
@@ -363,7 +363,7 @@ namespace nfd {
                 }
                 if (prefix_face_status == "READY_FOR_CALCULATION") {
                     try {
-                        object result = model_main_class.attr("calculate_prefix_face_result")(name_prefix);
+                        python::object result = model_main_class.attr("calculate_prefix_face_result")(name_prefix);
                         Face best_prefix_face = extract<Face>(result);
                         if (best_prefix_face != nullptr) {
                             return best_prefix_face;
@@ -406,7 +406,7 @@ namespace nfd {
 
                     namespace python = boost::python;
                     try {
-                        object result = model_main_class.attr("send_face_forwarding_metrics")(interestName, faceId, 100);
+                        python::object result = model_main_class.attr("send_face_forwarding_metrics")(interestName, faceId, 100);
                     } catch (const python::error_already_set &) {
                         PyErr_Print();
                     }
