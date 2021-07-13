@@ -319,14 +319,14 @@ namespace nfd {
                 namespace python = boost::python;
                 try {
                     object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
-                    str prefix_face_status = extract<str>(result);
+                    std::string prefix_face_status = extract<str>(result);
                     if (prefix_face_status == "RESULT_READY") {
                         object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
                         Face best_prefix_face = extract<Face>(result);
                     }
                 } catch (const python::error_already_set &) {
                     PyErr_Print();
-                    str prefix_face_status = "NO_INFORMATION";
+                    std::string prefix_face_status = "NO_INFORMATION";
                 }
 
                 auto now = time::steady_clock::now();
@@ -336,7 +336,7 @@ namespace nfd {
                     }
                     if (prefix_face_status == "RESULT_READY") {
                         if (best_prefix_face == nh.getFace())
-                            return nh.getFace()
+                            return nh.getFace();
                     }
                     FaceInfo *info = m_measurements.getFaceInfo(fibEntry, interest, nh.getFace().getId());
                     try {
@@ -366,7 +366,7 @@ namespace nfd {
                         object result = model_main_class.attr("calculate_prefix_face_result")(name_prefix);
                         Face best_prefix_face = extract<Face>(result);
                         if (best_prefix_face != nullptr) {
-                            return best_prefix_face
+                            return best_prefix_face;
                         }
                     } catch (const python::error_already_set &) {
                         PyErr_Print();
@@ -404,11 +404,9 @@ namespace nfd {
                     NFD_LOG_TRACE(interestName << " face=" << faceId << " timeout-count=" << nTimeouts);
                     faceInfo.recordTimeout(interestName);
 
-                    // needs change !!!
-                    const &name_prefix = interestName;
                     namespace python = boost::python;
                     try {
-                        object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix, faceId, 100);
+                        object result = model_main_class.attr("send_face_forwarding_metrics")(interestName, faceId, 100);
                     } catch (const python::error_already_set &) {
                         PyErr_Print();
                     }
