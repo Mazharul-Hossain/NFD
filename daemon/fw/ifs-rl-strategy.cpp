@@ -59,7 +59,7 @@ namespace nfd {
                 Py_Initialize();
 
                 NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
-                                                  << " n-silent-timeouts=" << m_maxSilentTimeouts);
+                                                  << " n-silent-timeouts=" << m_nMaxSilentTimeouts);
 
                 namespace python = boost::python;
                 try {
@@ -210,7 +210,7 @@ namespace nfd {
                                                       << " rtt=" << faceInfo->getLastRtt() << " srtt="
                                                       << faceInfo->getSrtt());
                     // needs change !!!
-                    const &name_prefix = pitEntry->getName();
+                    const auto &name_prefix = pitEntry->getName();
                     namespace python = boost::python;
                     try {
                         object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix, ingress.face,
@@ -315,7 +315,7 @@ namespace nfd {
                                                           bool isInterestNew) {
                 std::set <FaceStats, FaceStatsCompare> rankedFaces;
 
-                const &name_prefix = fibEntry.getPrefix();
+                const auto &name_prefix = fibEntry.getPrefix();
                 namespace python = boost::python;
                 try {
                     object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
