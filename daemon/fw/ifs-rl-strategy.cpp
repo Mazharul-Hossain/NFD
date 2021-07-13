@@ -319,10 +319,10 @@ namespace nfd {
                 namespace python = boost::python;
                 try {
                     python::object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
-                    std::string prefix_face_status = extract<std::string>(result);
+                    std::string prefix_face_status = python::extract<std::string>(result);
                     if (prefix_face_status == "RESULT_READY") {
                         python::object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
-                        Face best_prefix_face = extract<Face>(result);
+                        Face best_prefix_face = python::extract<Face>(result);
                     }
                 } catch (const python::error_already_set &) {
                     PyErr_Print();
@@ -336,7 +336,7 @@ namespace nfd {
                     }
                     if (prefix_face_status == "RESULT_READY") {
                         if (best_prefix_face == nh.getFace())
-                            return nh.getFace();
+                            return &nh.getFace();
                     }
                     FaceInfo *info = m_measurements.getFaceInfo(fibEntry, interest, nh.getFace().getId());
                     try {
@@ -364,7 +364,7 @@ namespace nfd {
                 if (prefix_face_status == "READY_FOR_CALCULATION") {
                     try {
                         python::object result = model_main_class.attr("calculate_prefix_face_result")(name_prefix);
-                        Face best_prefix_face = extract<Face>(result);
+                        Face best_prefix_face = python::extract<Face>(result);
                         if (best_prefix_face != nullptr) {
                             return best_prefix_face;
                         }
