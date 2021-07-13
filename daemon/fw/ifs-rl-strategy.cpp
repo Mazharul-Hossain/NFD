@@ -63,26 +63,22 @@ namespace nfd {
 
                 namespace python = boost::python;
                 try {
-                    // >>> import MyPythonClass
                     my_python_class_module = python::import("model_main");
-
-                    // >>> dog = MyPythonClass.Dog()
                     model_main_class = my_python_class_module.attr("ModelMain")();
-
-                    // >>> dog.bark("woof");
-                    // dog.attr("bark")("woof");
                 }
                 catch (const python::error_already_set &) {
                     PyErr_Print();
                 }
             }
 
-            const Name &IFSRLStrategy::getStrategyName() {
+            const Name &
+            IFSRLStrategy::getStrategyName() {
                 static const auto strategyName = Name("/localhost/nfd/strategy/ifs-rl").appendVersion(4);
                 return strategyName;
             }
 
-            static uint64_t getParamValue(const std::string &param, const std::string &value) {
+            static uint64_t
+            getParamValue(const std::string &param, const std::string &value) {
                 try {
                     if (!value.empty() && value[0] == '-')
                         NDN_THROW(boost::bad_lexical_cast());
@@ -94,7 +90,8 @@ namespace nfd {
                 }
             }
 
-            void IFSRLStrategy::processParams(const PartialName &parsed) {
+            void
+            IFSRLStrategy::processParams(const PartialName &parsed) {
                 for (const auto &component : parsed) {
                     std::string parsedStr(reinterpret_cast<const char *>(component.value()), component.value_size());
                     auto n = parsedStr.find("~");
@@ -186,8 +183,9 @@ namespace nfd {
                 }
             }
 
-            void IFSRLStrategy::beforeSatisfyInterest(const Data &data, const FaceEndpoint &ingress,
-                                                      const shared_ptr <pit::Entry> &pitEntry) {
+            void
+            IFSRLStrategy::beforeSatisfyInterest(const Data &data, const FaceEndpoint &ingress,
+                                                 const shared_ptr <pit::Entry> &pitEntry) {
                 NamespaceInfo *namespaceInfo = m_measurements.getNamespaceInfo(pitEntry->getName());
                 if (namespaceInfo == nullptr) {
                     NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress << " no-measurements");
@@ -213,9 +211,10 @@ namespace nfd {
                     const auto &name_prefix = pitEntry->getName();
                     namespace python = boost::python;
                     try {
-                        python::object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix, ingress.face,
-                                                                                              time::steady_clock::now() -
-                                                                                              outRecord->getLastRenewed());
+                        python::object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix,
+                                                                                                      ingress.face,
+                                                                                                      time::steady_clock::now() -
+                                                                                                      outRecord->getLastRenewed());
                     }
                     catch (const python::error_already_set &) {
                         PyErr_Print();
@@ -229,15 +228,16 @@ namespace nfd {
                 faceInfo->cancelTimeout(data.getName());
             }
 
-            void IFSRLStrategy::afterReceiveNack(const lp::Nack &nack, const FaceEndpoint &ingress,
-                                                 const shared_ptr <pit::Entry> &pitEntry) {
+            void
+            IFSRLStrategy::afterReceiveNack(const lp::Nack &nack, const FaceEndpoint &ingress,
+                                            const shared_ptr <pit::Entry> &pitEntry) {
                 NFD_LOG_DEBUG(nack.getInterest() << " nack from=" << ingress << " reason=" << nack.getReason());
                 onTimeoutOrNack(pitEntry->getName(), ingress.face.getId(), true);
             }
 
-            pit::OutRecord * IFSRLStrategy::forwardInterest(const Interest &interest, Face &outFace,
-                                                            const fib::Entry &fibEntry,
-                                                            const shared_ptr <pit::Entry> &pitEntry) {
+            pit::OutRecord *IFSRLStrategy::forwardInterest(const Interest &interest, Face &outFace,
+                                                           const fib::Entry &fibEntry,
+                                                           const shared_ptr <pit::Entry> &pitEntry) {
                 const auto &interestName = interest.getName();
                 auto faceId = outFace.getId();
 
@@ -317,16 +317,18 @@ namespace nfd {
 
                 const auto &name_prefix = fibEntry.getPrefix();
                 namespace python = boost::python;
+                std::string prefix_face_status;
+                FaceId best_prefix_face_id;
                 try {
                     python::object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
-                    std::string prefix_face_status = python::extract<std::string>(result);
+                    prefix_face_status = python::extract<std::string>(result);
                     if (prefix_face_status == "RESULT_READY") {
                         python::object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
-                        Face best_prefix_face = python::extract<Face>(result);
+                        best_prefix_face_id = python::extract<FaceId>(result);
                     }
                 } catch (const python::error_already_set &) {
                     PyErr_Print();
-                    std::string prefix_face_status = "NO_INFORMATION";
+                    prefix_face_status = "NO_INFORMATION";
                 }
 
                 auto now = time::steady_clock::now();
@@ -335,10 +337,11 @@ namespace nfd {
                         continue;
                     }
                     if (prefix_face_status == "RESULT_READY") {
-                        if (best_prefix_face == nh.getFace())
+                        if (best_prefix_face_id == nh.getFace().getId())
                             return &nh.getFace();
                     }
-                    FaceInfo *info = m_measurements.getFaceInfo(fibEntry, interest, nh.getFace().getId());
+                    const FaceInfo *info = m_measurements.getFaceInfo(fibEntry, interest.getName(),
+                                                                      nh.getFace().getId());
                     try {
                         if (info == nullptr) {
                             model_main_class.attr("face_info_for_ranking")(name_prefix, &nh.getFace(),
@@ -364,9 +367,11 @@ namespace nfd {
                 if (prefix_face_status == "READY_FOR_CALCULATION") {
                     try {
                         python::object result = model_main_class.attr("calculate_prefix_face_result")(name_prefix);
-                        Face best_prefix_face = python::extract<Face>(result);
-                        if (best_prefix_face != nullptr) {
-                            return best_prefix_face;
+                        FaceId best_prefix_face_id = python::extract<FaceId>(result);
+                        // check if best_prefix_face_id is null or not
+                        for (const auto &nh : fibEntry.getNextHops()) {
+                            if (best_prefix_face_id == nh.getFace().getId())
+                                return &nh.getFace();
                         }
                     } catch (const python::error_already_set &) {
                         PyErr_Print();
@@ -406,7 +411,8 @@ namespace nfd {
 
                     namespace python = boost::python;
                     try {
-                        python::object result = model_main_class.attr("send_face_forwarding_metrics")(interestName, faceId, 100);
+                        python::object result = model_main_class.attr("send_face_forwarding_metrics")(interestName,
+                                                                                                      faceId, 100);
                     } catch (const python::error_already_set &) {
                         PyErr_Print();
                     }

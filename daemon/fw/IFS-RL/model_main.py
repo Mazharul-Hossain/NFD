@@ -28,7 +28,7 @@ flags.DEFINE_boolean('step_verbose', False, 'verbose every step count')
 flags.DEFINE_integer('step_verbose_count', 100, 'verbose step count')
 flags.DEFINE_integer('save_step_count', 2000, 'model save step count')
 flags.DEFINE_string('checkpoint_path', 'checkpoint/', 'model save checkpoint_path (prefix is gym_env)')
-tf.flags.DEFINE_string('log_dir', '.', 'Root directory to raw image dataset.')
+tf.flags.DEFINE_string('log_dir', '/tmp/minindn/', 'Root directory to raw image dataset.')
 
 FLAGS = flags.FLAGS
 
