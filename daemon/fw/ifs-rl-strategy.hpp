@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2021,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -40,9 +40,10 @@ namespace nfd {
 
 /** \brief Adaptive SRTT-based Forwarding Strategy
  *
- *  \see
- *
- *  \note This strategy is not EndpointId-aware.
+ *  \see Vince Lehman, Ashlesh Gawande, Rodrigo Aldecoa, Dmitri Krioukov, Beichuan Zhang,
+ *       Lixia Zhang, and Lan Wang, "An Experimental Investigation of Hyperbolic Routing
+ *       with a Smart Forwarding Plane in NDN", NDN Technical Report NDN-0042, 2016.
+ *       https://named-data.net/publications/techreports/ndn-0042-1-asf/
  */
             class IFSRLStrategy : public Strategy {
             public:
@@ -51,20 +52,20 @@ namespace nfd {
                 static const Name &getStrategyName();
 
             public: // triggers
-                void afterReceiveInterest(const FaceEndpoint &ingress, const Interest &interest,
+                void afterReceiveInterest(const Interest &interest, const FaceEndpoint &ingress,
                                           const shared_ptr <pit::Entry> &pitEntry) override;
 
-                void beforeSatisfyInterest(const shared_ptr <pit::Entry> &pitEntry,
-                                           const FaceEndpoint &ingress, const Data &data) override;
+                void beforeSatisfyInterest(const Data &data, const FaceEndpoint &ingress,
+                                           const shared_ptr <pit::Entry> &pitEntry) override;
 
-                void afterReceiveNack(const FaceEndpoint &ingress, const lp::Nack &nack,
+                void afterReceiveNack(const lp::Nack &nack, const FaceEndpoint &ingress,
                                       const shared_ptr <pit::Entry> &pitEntry) override;
 
             private:
                 void processParams(const PartialName &parsed);
 
-                void forwardInterest(const Interest &interest, Face &outFace, const fib::Entry &fibEntry,
-                                     const shared_ptr <pit::Entry> &pitEntry, bool wantNewNonce = false);
+                pit::OutRecord *forwardInterest(const Interest &interest, Face &outFace, const fib::Entry &fibEntry,
+                                                const shared_ptr <pit::Entry> &pitEntry);
 
                 void sendProbe(const Interest &interest, const FaceEndpoint &ingress, const Face &faceToUse,
                                const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry);
@@ -73,15 +74,15 @@ namespace nfd {
                                                const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry,
                                                bool isNewInterest = true);
 
-                void onTimeout(const Name &interestName, FaceId faceId);
+                void onTimeoutOrNack(const Name &interestName, FaceId faceId, bool isNack);
 
-                void sendNoRouteNack(const FaceEndpoint &ingress, const shared_ptr <pit::Entry> &pitEntry);
+                void sendNoRouteNack(Face &face, const shared_ptr <pit::Entry> &pitEntry);
 
             private:
                 AsfMeasurements m_measurements;
                 ProbingModule m_probing;
                 RetxSuppressionExponential m_retxSuppression;
-                size_t m_maxSilentTimeouts = 0;
+                size_t m_nMaxSilentTimeouts = 3;
 
                 static const time::milliseconds RETX_SUPPRESSION_INITIAL;
                 static const time::milliseconds RETX_SUPPRESSION_MAX;
