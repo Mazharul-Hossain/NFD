@@ -62,7 +62,7 @@ def options(opt):
                       help='Build unit tests')
     optgrp.add_option('--with-other-tests', action='store_true', default=False,
                       help='Build other tests')
-    nfdopt.add_option('--with-boost-python', action='store_true', default=False,
+    optgrp.add_option('--with-boost-python', action='store_true', default=False,
                       help='Build unit tests')
 
 
