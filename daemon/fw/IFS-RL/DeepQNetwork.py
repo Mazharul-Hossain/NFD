@@ -1,13 +1,13 @@
 import tensorflow as tf
 import numpy as np
 
-from IFS_RL_ConvNet import IFS_RL_ConvNetv1
+from IFS_RL_ConvNet import IfsRlConvNetV1
 
 
 class DeepQNetwork:
 
-    def __init__(self, session: tf.Session, model_name: str, input_size: int = 128, num_classes: int = 48,
-                 learning_rate: float = 0.0001, name: str = "main") -> None:
+    def __init__(self, session, model_name, input_size=128, num_classes=48,
+                 learning_rate=0.0001, name="main"):
         """DQN Agent can
         1) Build network
         2) Predict Q_value given state
@@ -27,16 +27,15 @@ class DeepQNetwork:
 
         self._build_network(model_name=model_name)
 
-    def _build_network(self, model_name) -> None:
+    def _build_network(self, model_name):
         with tf.variable_scope(self.net_name):
             X_shape = [None, self.input_size]
             self._X = tf.placeholder(tf.float32, X_shape, name="input_x")
 
             models = {
-                "IFS_RL_ConvNetv1": IFS_RL_ConvNetv1,
+                "IFS_RL_ConvNetv1": IfsRlConvNetV1(self._X, self.num_classes, learning_rate=self.learning_rate),
             }
-
-            model = models[model_name](self._X, self.num_classes, learning_rate=self.learning_rate)
+            model = models[model_name]
             model.build_network()
 
             self._Qpred = model.inference
@@ -44,7 +43,7 @@ class DeepQNetwork:
             self._loss = model.loss
             self._train = model.optimizer
 
-    def predict(self, state: np.ndarray) -> np.ndarray:
+    def predict(self, state):
         """Returns Q(s, a)
         Args:
             state (np.ndarray): State array, shape (n, input_dim)
@@ -55,7 +54,7 @@ class DeepQNetwork:
         x = np.reshape(state, x_shape)
         return self.session.run(self._Qpred, feed_dict={self._X: x})
 
-    def update(self, x_stack: np.ndarray, y_stack: np.ndarray) -> list:
+    def update(self, x_stack, y_stack):
         """Performs updates on given X and y and returns a result
         Args:
             x_stack (np.ndarray): State array, shape (n, input_dim)

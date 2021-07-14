@@ -3,17 +3,16 @@ import multiprocessing
 import os
 import random
 import time
-from collections import deque
+from collections import deque, defaultdict
 from datetime import datetime
 from statistics import mean
 from typing import List
 
 import numpy as np
 import tensorflow as tf
-from IFS_RL import DeepQNetwork
+from DeepQNetwork import DeepQNetwork
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
+logger = None
 
 flags = tf.app.flags
 flags.DEFINE_float('discount_rate', 0.99, 'Initial discount rate.')
@@ -44,11 +43,13 @@ exploration_rate = 0.2  # probability of choosing to explore
 
 class ModelMain:
     def __init__(self):
-        logger.info("FLAGS configure.")
-        logger.info(FLAGS.__flags)
-
         logging.basicConfig(filename=os.path.join(FLAGS.log_dir, 'log_tf_IFS_RL_{}.txt'.format(os.getpid())),
                             level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s %(message)s')
+        global logger
+        logger = logging.getLogger()
+
+        # logger.info("FLAGS configure.")
+        # logger.info(FLAGS.__flags)
 
         # store the previous observations in replay memory
         self.replay_buffer = deque(maxlen=FLAGS.replay_memory_length)
@@ -71,29 +72,17 @@ class ModelMain:
         self.global_step = 0
         # ========================================================
 
-        self.all_rtt_reward = []
-        self.status_list = {}
+        self.all_rtt_reward = defaultdict(list)
+        self.status_list = defaultdict(lambda: NO_INFORMATION)
         self.best_prefix_face = {}
 
         # state = [states, actions, rewards]
         self.state = {}
-        self.next_state = {}
+        self.next_state = defaultdict(lambda: defaultdict(lambda: [0.0, 0]))
 
         self.ordered_face_list = []
 
-        self.log_file = open(os.path.join(FLAGS.log_dir, 'log_my_IFS_RL_{}.txt'.format(os.getpid())), 'a')
-        self.log_to_file("Class created successfully")
-
-    def log_to_file(self, message):
-        TimeFormat = "%d-%b-%Y (%H:%M:%S)"
-        timestamp_str = datetime.now().strftime(TimeFormat)
-
-        print("{} Process#{}: {}".format(
-            timestamp_str, os.getpid(), message, file=self.log_file, flush=True))
-
     def get_prefix_face_status(self, name_prefix):
-        if name_prefix not in self.status_list:
-            self.status_list[name_prefix] = NO_INFORMATION
         return self.status_list[name_prefix]
 
     def get_prefix_face_result(self, name_prefix):
@@ -107,7 +96,7 @@ class ModelMain:
         message += "{}: {} {}, ".format('last_rtt', type(last_rtt), str(last_rtt))
         message += "{}: {} {}, ".format('s_rtt', type(s_rtt), s_rtt)
         message += "{}: {} {} {}]".format('cost', type(cost), str(cost), is_passing_null)
-        self.log_to_file(message)
+        logger.info(message)
 
         if name_prefix not in self.next_state:
             self.next_state[name_prefix] = {}
@@ -138,11 +127,11 @@ class ModelMain:
 
         return action
 
-    def replay_train(self, main_DQN: DeepQNetwork, target_DQN: DeepQNetwork, train_batch: list) -> float:
+    def replay_train(self, main_dqn, target_dqn, train_batch):
         """Trains `mainDQN` with target Q values given by `targetDQN`
         Args:
-            main_DQN (DeepQNetwork``): Main DQN that will be trained
-            target_DQN (DeepQNetwork): Target DQN that will predict Q_target
+            main_dqn (DeepQNetwork``): Main DQN that will be trained
+            target_dqn (DeepQNetwork): Target DQN that will predict Q_target
             train_batch (list): Minibatch of replay memory
                 Each element is (s, a, r, s', done)
                 [(state, action, reward, next_state, done), ...]
@@ -154,17 +143,17 @@ class ModelMain:
         rewards = np.array([x[2] for x in train_batch[:FLAGS.batch_size]])
         next_states = np.vstack([x[3] for x in train_batch])
 
-        predict_result = target_DQN.predict(next_states)
+        predict_result = target_dqn.predict(next_states)
         Q_target = rewards + FLAGS.discount_rate * np.max(predict_result, axis=1)
 
         X = states
-        y = main_DQN.predict(states)
+        y = main_dqn.predict(states)
         y[np.arange(len(X)), actions] = Q_target
 
         # Train our network using target and predicted Q values on each episode
-        return main_DQN.update(X, y)
+        return main_dqn.update(X, y)
 
-    def get_copy_var_ops(self, *, dest_scope_name: str, src_scope_name: str) -> List[tf.Operation]:
+    def get_copy_var_ops(self, dest_scope_name, src_scope_name):
         """Creates TF operations that copy weights from `src_scope` to `dest_scope`
         Args:
             dest_scope_name (str): Destination weights (copy to)
@@ -227,7 +216,7 @@ class ModelMain:
                 model_loss = loss
 
                 if FLAGS.step_verbose and step_count % FLAGS.step_verbose_count == 0:
-                    logger.info(f" - step_count : {step_count}, loss: {loss}")
+                    logger.info(" - step_count : {}, loss: {}".format(step_count, loss))
 
             if step_count % FLAGS.target_update_count == 0:
                 self.sess.run(copy_ops)
@@ -252,7 +241,7 @@ class ModelMain:
                     os.makedirs(checkpoint_path)
 
                 self.saver.save(self.sess, checkpoint_path, global_step=self.global_step)
-                logger.info(f"save model for global_step: {self.global_step} ")
+                logger.info("save model for global_step: {}".format(self.global_step))
 
             self.global_step += 1
 
@@ -262,9 +251,5 @@ class ModelMain:
         return reward
 
     def send_face_forwarding_metrics(self, name_prefix, face, last_rtt):
-        if name_prefix not in self.next_state:
-            self.next_state[name_prefix] = {}
-        if face not in self.next_state[name_prefix]:
-            self.next_state[name_prefix][face] = [0.0, 0]
         self.next_state[name_prefix][face][1] += 1
         self.all_rtt_reward[name_prefix].append(last_rtt)

@@ -1,17 +1,17 @@
 import tensorflow as tf
 
 
-class IFS_RL_ConvNetv1:
+class IfsRlConvNetV1:
 
-    def __init__(self, X: tf.placeholder, num_classes: int = 48, learning_rate=0.001) -> None:
+    def __init__(self, X, num_classes=48, learning_rate=0.001):
         self.X = tf.reshape(X, [-1, 128])
         self.is_training = tf.placeholder(tf.bool, name='is_training')
 
         self.num_classes = num_classes
         self.learning_rate = learning_rate
 
-    def build_network(self) -> None:
-        conv1 = tf.layers.conv1d(self.X, 32, kernel_size=3, padding="same", activation=tf.nn.relu)
+    def build_network(self):
+        conv1 = tf.layers.conv1d(tf.expand_dims(self.X, -1), 32, kernel_size=3, padding="same", activation=tf.nn.relu)
         pool1 = tf.layers.max_pooling1d(inputs=conv1, pool_size=2, strides=2)
 
         conv2 = tf.layers.conv1d(pool1, 64, kernel_size=3, padding="same", activation=tf.nn.relu)
@@ -23,8 +23,8 @@ class IFS_RL_ConvNetv1:
 
         net = tf.layers.dense(pool3_flat, 512)
         net = tf.layers.dense(net, 128)
-        net = tf.layers.dense(net, self.num_classes,
-                              tf.identity if self.is_training else tf.nn.softmax)
+        net = tf.cond(self.is_training, lambda: tf.layers.dense(net, self.num_classes, tf.identity),
+                      lambda: tf.layers.dense(net, self.num_classes, tf.nn.softmax))
 
         self.inference = net
         self.predict = tf.argmax(self.inference, 1)
