@@ -35,8 +35,8 @@
 #include "python3.6m/Python.h" //python libraries
 
 namespace nfd {
-    namespace fw {
-        namespace asf {
+namespace fw {
+namespace asf {
 
 /** \brief Adaptive SRTT-based Forwarding Strategy
  *
@@ -45,58 +45,67 @@ namespace nfd {
  *       with a Smart Forwarding Plane in NDN", NDN Technical Report NDN-0042, 2016.
  *       https://named-data.net/publications/techreports/ndn-0042-1-asf/
  */
-            class IFSRLStrategy : public Strategy {
-            public:
-                explicit IFSRLStrategy(Forwarder &forwarder, const Name &name = getStrategyName());
+class IFSRLStrategy : public Strategy 
+{
+public:
+    explicit IFSRLStrategy(Forwarder &forwarder, const Name &name = getStrategyName());
 
-                static const Name &getStrategyName();
+    static const Name &getStrategyName();
 
-            public: // triggers
-                void afterReceiveInterest(const Interest &interest, const FaceEndpoint &ingress,
-                                          const shared_ptr <pit::Entry> &pitEntry) override;
+public: // triggers
+    void 
+    afterReceiveInterest(const Interest &interest, const FaceEndpoint &ingress,
+                                const shared_ptr <pit::Entry> &pitEntry) override;
 
-                void beforeSatisfyInterest(const Data &data, const FaceEndpoint &ingress,
-                                           const shared_ptr <pit::Entry> &pitEntry) override;
+    void 
+    beforeSatisfyInterest(const Data &data, const FaceEndpoint &ingress,
+                                const shared_ptr <pit::Entry> &pitEntry) override;
 
-                void afterReceiveNack(const lp::Nack &nack, const FaceEndpoint &ingress,
-                                      const shared_ptr <pit::Entry> &pitEntry) override;
+    void 
+    afterReceiveNack(const lp::Nack &nack, const FaceEndpoint &ingress,
+                            const shared_ptr <pit::Entry> &pitEntry) override;
 
-            private:
-                void processParams(const PartialName &parsed);
+private:
+    void 
+    processParams(const PartialName &parsed);
 
-                pit::OutRecord *forwardInterest(const Interest &interest, Face &outFace, const fib::Entry &fibEntry,
-                                                const shared_ptr <pit::Entry> &pitEntry);
+    pit::OutRecord *
+    forwardInterest(const Interest &interest, Face &outFace, const fib::Entry &fibEntry,
+                                    const shared_ptr <pit::Entry> &pitEntry);
 
-                void sendProbe(const Interest &interest, const FaceEndpoint &ingress, const Face &faceToUse,
-                               const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry);
+    void 
+    sendProbe(const Interest &interest, const FaceEndpoint &ingress, const Face &faceToUse,
+                    const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry);
 
-                Face *getBestFaceForForwarding(const Interest &interest, const Face &inFace,
-                                               const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry,
-                                               bool isNewInterest = true);
+    Face *
+    getBestFaceForForwarding(const Interest &interest, const Face &inFace,
+                                    const fib::Entry &fibEntry, const shared_ptr <pit::Entry> &pitEntry,
+                                    bool isNewInterest = true);
 
-                void onTimeoutOrNack(const Name &interestName, FaceId faceId, bool isNack);
+    void 
+    onTimeoutOrNack(const Name &interestName, FaceId faceId, bool isNack);
 
-                void sendNoRouteNack(Face &face, const shared_ptr <pit::Entry> &pitEntry);
+    void 
+    sendNoRouteNack(Face &face, const shared_ptr <pit::Entry> &pitEntry);
 
-            private:
-                AsfMeasurements m_measurements;
-                ProbingModule m_probing;
-                RetxSuppressionExponential m_retxSuppression;
-                size_t m_nMaxSilentTimeouts = 3;
+private:
+    AsfMeasurements m_measurements;
+    ProbingModule m_probing;
+    RetxSuppressionExponential m_retxSuppression;
+    size_t m_nMaxSilentTimeouts = 3;
 
-                static const time::milliseconds RETX_SUPPRESSION_INITIAL;
-                static const time::milliseconds RETX_SUPPRESSION_MAX;
+    static const time::milliseconds RETX_SUPPRESSION_INITIAL;
+    static const time::milliseconds RETX_SUPPRESSION_MAX;
 
+    boost::python::object my_python_class_module;
+    boost::python::object model_main_class;
+};
 
-                boost::python::object my_python_class_module;
-                boost::python::object model_main_class;
-            };
+} // namespace asf
 
-        } // namespace asf
+using asf::IFSRLStrategy;
 
-        using asf::IFSRLStrategy;
-
-    } // namespace fw
+} // namespace fw
 } // namespace nfd
 
 #endif // NFD_DAEMON_FW_IFS_RL_STRATEGY_HPP
