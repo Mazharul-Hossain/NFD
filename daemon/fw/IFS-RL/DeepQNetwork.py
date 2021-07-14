@@ -3,7 +3,6 @@ import numpy as np
 
 from IFS_RL_ConvNet import IfsRlConvNetV1
 
-
 class DeepQNetwork:
 
     def __init__(self, session, model_name, input_size=128, num_classes=48,

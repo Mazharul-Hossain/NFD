@@ -116,7 +116,6 @@ IFSRLStrategy::processParams(const PartialName &parsed) {
     * afterReceiveInterest
     *
     * @see page 40 of documents for details
-    *
     * @param interest Interest packet
     * @param ingress its incoming face
     * @param pitEntry the PIT entry
@@ -134,8 +133,7 @@ IFSRLStrategy::afterReceiveInterest(const Interest &interest, const FaceEndpoint
             NFD_LOG_DEBUG(interest << " new-interest from=" << ingress << " no-nexthop");
             sendNoRouteNack(ingress.face, pitEntry);
         } else {
-            NFD_LOG_DEBUG(
-                    interest << " new-interest from=" << ingress << " forward-to=" << faceToUse->getId());
+            NFD_LOG_DEBUG( interest << " new-interest from=" << ingress << " forward-to=" << faceToUse->getId());
             forwardInterest(interest, *faceToUse, fibEntry, pitEntry);
             sendProbe(interest, ingress, *faceToUse, fibEntry, pitEntry);
         }
@@ -339,25 +337,32 @@ IFSRLStrategy::getBestFaceForForwarding(const Interest &interest, const Face &in
         python::object result = model_main_class.attr("get_prefix_face_status")(name_prefix);
         prefix_face_status = python::extract<std::string>(result);
         if (prefix_face_status == "RESULT_READY") {
+            NDN_LOG_INFO("Result is ready");
             python::object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
             best_prefix_face_id = python::extract<FaceId>(result);
+            NDN_LOG_INFO("RR: got best face, face id " << best_prefix_face_id <<  " for the prefix: " <<  name_prefix); 
         }
     } catch (const python::error_already_set &) {
         PyErr_Print();
+        NDN_LOG_INFO("Result not ready or no information"); 
         prefix_face_status = "NO_INFORMATION";
     }
 
     auto now = time::steady_clock::now();
-    for (const auto &nh : fibEntry.getNextHops()) {
+    for (const auto &nh : fibEntry.getNextHops()) 
+    {
         if (!isNextHopEligible(inFace, interest, nh, pitEntry, !isInterestNew, now)) {
             continue;
         }
         if (prefix_face_status == "RESULT_READY") {
-            if (best_prefix_face_id == nh.getFace().getId())
+            NDN_LOG_INFO("Result is ready, returning best face"); 
+            if (best_prefix_face_id == nh.getFace().getId()) {
+                NDN_LOG_INFO("RR: Returing face for the face-id: " << best_prefix_face_id <<  " and for the prefix: " <<  name_prefix); 
                 return &nh.getFace();
+            }
         }
-        const FaceInfo *info = m_measurements.getFaceInfo(fibEntry, interest.getName(),
-                                                            nh.getFace().getId());
+        const FaceInfo *info = m_measurements.getFaceInfo(fibEntry, interest.getName(), 
+                                                                                               nh.getFace().getId());
         try {
             if (info == nullptr) {
                 model_main_class.attr("face_info_for_ranking")(name_prefix, &nh.getFace(),
@@ -371,6 +376,7 @@ IFSRLStrategy::getBestFaceForForwarding(const Interest &interest, const Face &in
             }
         }
         catch (const python::error_already_set &) {
+            NDN_LOG_INFO("Inside catch 2");
             PyErr_Print();
         }
         if (info == nullptr) {
@@ -380,10 +386,12 @@ IFSRLStrategy::getBestFaceForForwarding(const Interest &interest, const Face &in
             rankedFaces.insert({&nh.getFace(), info->getLastRtt(), info->getSrtt(), nh.getCost()});
         }
     }
+
     if (prefix_face_status == "READY_FOR_CALCULATION") {
         try {
             python::object result = model_main_class.attr("calculate_prefix_face_result")(name_prefix);
             FaceId best_prefix_face_id = python::extract<FaceId>(result);
+            NDN_LOG_INFO("calculate_prefix_face_result: Returing face for the face-id: " << best_prefix_face_id <<  " prefix: " <<  name_prefix); 
             // check if best_prefix_face_id is null or not
             for (const auto &nh : fibEntry.getNextHops()) {
                 if (best_prefix_face_id == nh.getFace().getId())
