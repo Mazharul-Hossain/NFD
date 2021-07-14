@@ -55,7 +55,7 @@ IFSRLStrategy::IFSRLStrategy(Forwarder &forwarder, const Name &name)
     this->setInstanceName(makeInstanceName(name, getStrategyName()));
 
     // Allow Python to load modules from the current directory.
-    setenv("PYTHONPATH", "./IFS-RL", 1);
+    setenv("PYTHONPATH", "/home/vagrant/mini-ndn/ndn-src/NFD/daemon/fw/IFS-RL/", 1);
     // Initialize Python.
     Py_Initialize();
 
