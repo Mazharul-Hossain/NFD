@@ -3,6 +3,7 @@ import multiprocessing
 import os
 import random
 import time
+import copy
 from collections import deque, defaultdict
 from datetime import datetime
 from statistics import mean
@@ -98,10 +99,6 @@ class ModelMain:
         message += "{}: {} {} {}]".format('cost', type(cost), str(cost), is_passing_null)
         logger.info(message)
 
-        if name_prefix not in self.next_state:
-            self.next_state[name_prefix] = {}
-        if face not in self.next_state[name_prefix]:
-            self.next_state[name_prefix][face] = [0.0, 0]
         self.next_state[name_prefix][face][0] = last_rtt - s_rtt
 
     def calculate_prefix_face_result(self, name_prefix):
@@ -118,7 +115,7 @@ class ModelMain:
             action = np.argmax(self.main_DQN.predict(state))
             action = all_faces[action]
 
-        self.state[name_prefix] = self.next_state[name_prefix]
+        self.state[name_prefix] = copy.deepcopy(self.next_state[name_prefix])
         for face in all_faces:
             self.next_state[name_prefix][face] = [0.0, 0]
 
