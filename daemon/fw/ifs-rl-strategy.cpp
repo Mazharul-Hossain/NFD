@@ -23,6 +23,7 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <exception>
 #include "ifs-rl-strategy.hpp"
 #include "algorithm.hpp"
 #include "common/global.hpp"
@@ -31,7 +32,6 @@
 namespace nfd {
     namespace fw {
         namespace asf {
-
             NFD_LOG_INIT(IFSRLStrategy);
             NFD_REGISTER_STRATEGY(IFSRLStrategy);
 
@@ -39,9 +39,9 @@ namespace nfd {
             const time::milliseconds IFSRLStrategy::RETX_SUPPRESSION_MAX(250);
 
             IFSRLStrategy::IFSRLStrategy(Forwarder &forwarder, const Name &name)
-                    : Strategy(forwarder), m_measurements(getMeasurements()), m_probing(m_measurements),
-                      m_retxSuppression(RETX_SUPPRESSION_INITIAL, RetxSuppressionExponential::DEFAULT_MULTIPLIER,
-                                        RETX_SUPPRESSION_MAX) {
+            : Strategy(forwarder), m_measurements(getMeasurements()), m_probing(m_measurements),
+            m_retxSuppression(RETX_SUPPRESSION_INITIAL, RetxSuppressionExponential::DEFAULT_MULTIPLIER,
+                              RETX_SUPPRESSION_MAX) {
                 ParsedInstanceName parsed = parseInstanceName(name);
                 if (!parsed.parameters.empty()) {
                     processParams(parsed.parameters);
@@ -53,22 +53,89 @@ namespace nfd {
                 }
                 this->setInstanceName(makeInstanceName(name, getStrategyName()));
 
+                NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
+                << " n-silent-timeouts=" << m_nMaxSilentTimeouts);
+
+                namespace python = boost::python;
+                
                 // Allow Python to load modules from the current directory.
                 setenv("PYTHONPATH", "/home/vagrant/mini-ndn/ndn-src/NFD/daemon/fw/IFS-RL/", 1);
                 // Initialize Python.
                 Py_Initialize();
-
-                NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
-                                                  << " n-silent-timeouts=" << m_nMaxSilentTimeouts);
-
-                namespace python = boost::python;
+                
+                python::object os = python::import("os");
+                python::object sys = python::import("sys");
+                
+                python::object sys_path(sys.attr("path"));
+                python::object sys_path_append(sys_path.attr("append"));
+                sys_path_append("/home/vagrant/mini-ndn/ndn-src/NFD/daemon/fw/IFS-RL/");
+                
+                PyRun_SimpleString("import sys");
+                PyRun_SimpleString("sys.path.append(\"/home/vagrant/mini-ndn/ndn-src/NFD/daemon/fw/IFS-RL/\")");
+                
+                sys_path(sys.attr("path"));
+                python::object formatted_path = python::str(', ').join(sys_path);
+                std::string str_path = python::extract<std::string>(formatted_path);
+                NDN_LOG_INFO("Python error: " << str_path);
+                
                 try {
-                    my_python_class_module = python::import("model_main");
-                    model_main_class = my_python_class_module.attr("ModelMain")();
+                    python::object my_python_class_module = python::import("from model_main import ModelMain");
                 }
-                catch (const python::error_already_set &e) {
-                    NDN_LOG_INFO(PyErr_Print());
-                    NDN_LOG_INFO(e);
+                catch (python::error_already_set& e) {
+                    // https://stackoverflow.com/a/1418703/2049763
+                    NDN_LOG_INFO("Python error: Inside catch 1");
+                    PyErr_Print();
+                    
+                    PyObject *error_type = NULL,*error_value = NULL,*error_traceback = NULL;
+                    python::object formatted_list, formatted;
+                    PyErr_Fetch(&error_type,&error_value,&error_traceback);
+                    PyErr_NormalizeException(&error_type,&error_value,&error_traceback);
+                    
+                    python::handle<> hexc(python::allow_null(error_type)),hval(python::allow_null(error_value)),htb(python::allow_null(error_traceback)); 
+                    python::object traceback = python::import("traceback");
+                    python::object format_exception(traceback.attr("format_exception"));
+                    NDN_LOG_INFO("Python error: Inside catch 85");
+                    formatted_list = format_exception(hexc,hval,htb);
+                    NDN_LOG_INFO("Python error: Inside catch 87");
+                    
+                    formatted = python::str('\n').join(formatted_list);
+                    NDN_LOG_INFO("Python error: Inside catch 90");
+                    std::string errorSummary_ = python::extract<std::string>(formatted);
+                    NDN_LOG_INFO("Python error: " << errorSummary_);
+                    
+                    python::object format_exc(traceback.attr("format_exc"));
+                    formatted = format_exc();
+                    errorSummary_ = python::extract<std::string>(formatted);
+                    NDN_LOG_INFO("Python error: " << errorSummary_);                    
+                }
+                try {
+                    python::object model_main_class = my_python_class_module.attr("ModelMain")();
+                }
+                catch (python::error_already_set& e) {
+                    NDN_LOG_INFO("Python error: Inside catch 2");
+                    PyErr_Print();
+                    
+                    PyObject *error_type = NULL,*error_value = NULL,*error_traceback = NULL;
+                    python::object formatted_list, formatted;
+                    PyErr_Fetch(&error_type,&error_value,&error_traceback);
+                    PyErr_NormalizeException(&error_type,&error_value,&error_traceback);
+                    
+                    python::handle<> hexc(python::allow_null(error_type)),hval(python::allow_null(error_value)),htb(python::allow_null(error_traceback)); 
+                    python::object traceback = python::import("traceback");
+                    python::object format_exception(traceback.attr("format_exception"));
+                    NDN_LOG_INFO("Python error: Inside catch 85");
+                    formatted_list = format_exception(hexc,hval,htb);
+                    NDN_LOG_INFO("Python error: Inside catch 87");
+                    
+                    formatted = python::str('\n').join(formatted_list);
+                    NDN_LOG_INFO("Python error: Inside catch 90");
+                    std::string errorSummary_ = python::extract<std::string>(formatted);
+                    NDN_LOG_INFO("Python error: " << errorSummary_);
+                    
+                    python::object format_exc(traceback.attr("format_exc"));
+                    formatted = format_exc();
+                    errorSummary_ = python::extract<std::string>(formatted);
+                    NDN_LOG_INFO("Python error: " << errorSummary_);           
                 }
             }
 
@@ -146,7 +213,7 @@ namespace nfd {
                     if (suppressResult == RetxSuppressionResult::SUPPRESS) {
                         // Cannot be sent on this face, interest was received within the suppression window
                         NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress
-                                               << " forward-to=" << faceToUse->getId() << " suppressed");
+                        << " forward-to=" << faceToUse->getId() << " suppressed");
                     } else {
                         // The retx arrived after the suppression period: forward it but don't probe, because
                         // probing was done earlier for this interest when it was newly received
@@ -172,7 +239,7 @@ namespace nfd {
                 auto suppressResult = m_retxSuppression.decidePerUpstream(*pitEntry, outFace);
                 if (suppressResult == RetxSuppressionResult::SUPPRESS) {
                     NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress
-                                           << " retry-to=" << outFace.getId() << " suppressed");
+                    << " retry-to=" << outFace.getId() << " suppressed");
                 } else {
                     NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress << " retry-to=" << outFace.getId());
                     // sendInterest() is used here instead of forwardInterest() because the measurements info
@@ -206,16 +273,16 @@ namespace nfd {
                 } else {
                     faceInfo->recordRtt(time::steady_clock::now() - outRecord->getLastRenewed());
                     NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress
-                                                      << " rtt=" << faceInfo->getLastRtt() << " srtt="
-                                                      << faceInfo->getSrtt());
+                    << " rtt=" << faceInfo->getLastRtt() << " srtt="
+                    << faceInfo->getSrtt());
                     // needs change !!!
                     const auto &name_prefix = pitEntry->getName();
                     namespace python = boost::python;
                     try {
                         python::object result = model_main_class.attr("send_face_forwarding_metrics")(name_prefix,
-                                                                                                      ingress.face,
-                                                                                                      time::steady_clock::now() -
-                                                                                                      outRecord->getLastRenewed());
+                                ingress.face,
+                                time::steady_clock::now() -
+                                outRecord->getLastRenewed());
                     }
                     catch (const python::error_already_set &) {
                         PyErr_Print();
@@ -254,11 +321,11 @@ namespace nfd {
                 if (!faceInfo.isTimeoutScheduled()) {
                     auto timeout = faceInfo.scheduleTimeout(interestName,
                                                             [this, name = interestName, faceId] {
-                                                                onTimeoutOrNack(name, faceId, false);
-                                                            });
+                        onTimeoutOrNack(name, faceId, false);
+                    });
                     NFD_LOG_TRACE("Scheduled timeout for " << fibEntry.getPrefix() << " to=" << faceId
-                                                           << " in "
-                                                           << time::duration_cast<time::milliseconds>(timeout));
+                    << " in "
+                    << time::duration_cast<time::milliseconds>(timeout));
                 }
 
                 return outRecord;
@@ -333,7 +400,7 @@ namespace nfd {
                         python::object result = model_main_class.attr("get_prefix_face_result")(name_prefix);
                         best_prefix_face_id = python::extract<FaceId>(result);
                         NDN_LOG_INFO("RR: got best face, face id " << best_prefix_face_id << " for the prefix: "
-                                                                   << name_prefix);
+                        << name_prefix);
                     }
                 } catch (const python::error_already_set &) {
                     PyErr_Print();
@@ -350,8 +417,8 @@ namespace nfd {
                         NDN_LOG_INFO("Result is ready, returning best face");
                         if (best_prefix_face_id == nh.getFace().getId()) {
                             NDN_LOG_INFO("RR: Returing face for the face-id: " << best_prefix_face_id
-                                                                               << " and for the prefix: "
-                                                                               << name_prefix);
+                            << " and for the prefix: "
+                            << name_prefix);
                             return &nh.getFace();
                         }
                     }
@@ -360,13 +427,13 @@ namespace nfd {
                     try {
                         if (info == nullptr) {
                             model_main_class.attr("face_info_for_ranking")(name_prefix, &nh.getFace(),
-                                                                           FaceInfo::RTT_NO_MEASUREMENT,
-                                                                           FaceInfo::RTT_NO_MEASUREMENT,
-                                                                           nh.getCost(), "null");
+                                    FaceInfo::RTT_NO_MEASUREMENT,
+                                    FaceInfo::RTT_NO_MEASUREMENT,
+                                    nh.getCost(), "null");
                         } else {
                             model_main_class.attr("face_info_for_ranking")(name_prefix, &nh.getFace(),
-                                                                           info->getLastRtt(),
-                                                                           info->getSrtt(), nh.getCost(), "");
+                                    info->getLastRtt(),
+                                    info->getSrtt(), nh.getCost(), "");
                         }
                     }
                     catch (const python::error_already_set &) {
@@ -387,8 +454,8 @@ namespace nfd {
                         FaceId best_prefix_face_id = python::extract<FaceId>(result);
                         NDN_LOG_INFO(
                                 "calculate_prefix_face_result: Returing face for the face-id: " << best_prefix_face_id
-                                                                                                << " prefix: "
-                                                                                                << name_prefix);
+                                << " prefix: "
+                                << name_prefix);
                         // check if best_prefix_face_id is null or not
                         for (const auto &nh : fibEntry.getNextHops()) {
                             if (best_prefix_face_id == nh.getFace().getId())
@@ -434,7 +501,7 @@ namespace nfd {
                     namespace python = boost::python;
                     try {
                         python::object result = model_main_class.attr("send_face_forwarding_metrics")(interestName,
-                                                                                                      faceId, 100);
+                                faceId, 100);
                     } catch (const python::error_already_set &) {
                         PyErr_Print();
                     }

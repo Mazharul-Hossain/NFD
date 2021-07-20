@@ -31,8 +31,9 @@
 #include "fw/retx-suppression-exponential.hpp"
 #include "fw/strategy.hpp"
 
+#include <ostream>
 #include <boost/python.hpp> //boost libraries
-#include "python3.6m/Python.h" //python libraries
+#include "python2.7/Python.h" //python libraries
 
 namespace nfd {
 namespace fw {
@@ -100,6 +101,7 @@ private:
     boost::python::object my_python_class_module;
     boost::python::object model_main_class;
 };
+
 
 } // namespace asf
 
