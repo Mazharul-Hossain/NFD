@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,8 +28,7 @@
 
 #include <ndn-cxx/mgmt/nfd/control-parameters.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
 NFD_LOG_INIT(FibUpdater);
 
@@ -187,11 +186,10 @@ FibUpdater::sendUpdates(const FibUpdateList& updates,
                         const FibUpdateSuccessCallback& onSuccess,
                         const FibUpdateFailureCallback& onFailure)
 {
-  std::string updateString = (updates.size() == 1) ? " update" : " updates";
-  NFD_LOG_DEBUG("Applying " << updates.size() << updateString << " to FIB");
+  NFD_LOG_DEBUG("Applying " << updates.size() << " FIB update(s)");
 
   for (const FibUpdate& update : updates) {
-    NFD_LOG_DEBUG("Sending FIB update: " << update);
+    NFD_LOG_DEBUG("Sending " << update);
 
     if (update.action == FibUpdate::ADD_NEXTHOP) {
       sendAddNextHopUpdate(update, onSuccess, onFailure);
@@ -284,7 +282,7 @@ FibUpdater::onUpdateError(const FibUpdate& update,
 {
   uint32_t code = response.getCode();
   NFD_LOG_DEBUG("Failed to apply " << update <<
-                " (code: " << code << ", error: " << response.getText() << ")");
+                " [code: " << code << ", error: " << response.getText() << "]");
 
   if (code == ndn::nfd::Controller::ERROR_TIMEOUT && nTimeouts < MAX_NUM_TIMEOUTS) {
     sendAddNextHopUpdate(update, onSuccess, onFailure, ++nTimeouts);
@@ -302,7 +300,7 @@ FibUpdater::onUpdateError(const FibUpdate& update,
     }
   }
   else {
-    NDN_THROW(Error("Non-recoverable error: " + response.getText() + " code: " + to_string(code)));
+    NDN_THROW(Error("Non-recoverable error " + std::to_string(code) + ": " + response.getText()));
   }
 }
 
@@ -555,7 +553,7 @@ FibUpdater::createFibUpdatesForUpdatedRoute(const RibEntry& entry, const Route& 
 
 void
 FibUpdater::createFibUpdatesForErasedRoute(const RibEntry& entry, const Route& route,
-                                               const bool captureWasTurnedOff)
+                                           bool captureWasTurnedOff)
 {
   addFibUpdate(FibUpdate::createRemoveUpdate(entry.getName(), route.faceId));
 
@@ -708,5 +706,4 @@ FibUpdater::removeInheritedRoute(const Name& name, const Route& route)
   m_inheritedRoutes.push_back(update);
 }
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib

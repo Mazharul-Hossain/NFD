@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,21 +26,21 @@
 #include "benchmark-helpers.hpp"
 #include "table/cs.hpp"
 
+#include <functional>
 #include <iostream>
 
 #ifdef NFD_HAVE_VALGRIND
 #include <valgrind/callgrind.h>
 #endif
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class CsBenchmarkFixture
 {
 protected:
   CsBenchmarkFixture()
   {
-#ifdef _DEBUG
+#ifndef NDEBUG
     std::cerr << "Benchmark compiled in debug mode is unreliable, please compile in release mode.\n";
 #endif
 
@@ -112,9 +112,7 @@ protected:
     std::vector<shared_ptr<Interest>> workload(count);
     for (size_t i = 0; i < count; ++i) {
       Name name = genName(i);
-      auto interest = std::make_shared<Interest>(name);
-      interest->setCanBePrefix(false);
-      workload[i] = interest;
+      workload[i] = std::make_shared<Interest>(name);
     }
     return workload;
   }
@@ -212,5 +210,4 @@ BOOST_FIXTURE_TEST_CASE(FindCanBePrefixHit, CsBenchmarkFixture)
   std::cout << "find(CanBePrefix-hit) " << (N_INTERESTS * N_CHILDREN * REPEAT) << ": " << d << std::endl;
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

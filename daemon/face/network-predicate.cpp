@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,15 +29,14 @@
 
 #include <fnmatch.h>
 
-namespace nfd {
-namespace face {
+#include <boost/lexical_cast.hpp>
+
+namespace nfd::face {
 
 NetworkPredicateBase::NetworkPredicateBase()
 {
   this->clear();
 }
-
-NetworkPredicateBase::~NetworkPredicateBase() = default;
 
 void
 NetworkPredicateBase::clear()
@@ -162,13 +161,6 @@ IpAddressPredicate::isRuleValid(const std::string& key, const std::string& value
   }
 }
 
-bool
-NetworkPredicateBase::operator==(const NetworkPredicateBase& other) const
-{
-  return this->m_whitelist == other.m_whitelist &&
-         this->m_blacklist == other.m_blacklist;
-}
-
 static bool
 doesMatchPattern(const std::string& ifname, const std::string& pattern)
 {
@@ -227,5 +219,4 @@ IpAddressPredicate::operator()(const boost::asio::ip::address& address) const
                       [&address] (const auto& rule) { return doesAddressMatchRule(address, rule); });
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

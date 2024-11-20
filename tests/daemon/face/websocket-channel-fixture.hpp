@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,16 +30,16 @@
 
 #include "channel-fixture.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
+
+using face::WebSocketChannel;
 
 class WebSocketChannelFixture : public ChannelFixture<WebSocketChannel, websocket::Endpoint>
 {
 protected:
   shared_ptr<WebSocketChannel>
   makeChannel(const boost::asio::ip::address& addr, uint16_t port = 0,
-              optional<size_t> mtu = nullopt) final
+              std::optional<size_t> mtu = std::nullopt) final
   {
     if (port == 0)
       port = getNextPort();
@@ -93,7 +93,7 @@ protected:
   clientSendInterest(const Interest& interest)
   {
     const Block& payload = interest.wireEncode();
-    client.send(clientHandle, payload.wire(), payload.size(), websocketpp::frame::opcode::binary);
+    client.send(clientHandle, payload.data(), payload.size(), websocketpp::frame::opcode::binary);
   }
 
 private:
@@ -153,8 +153,6 @@ private:
   time::steady_clock::time_point m_prevPingRecvTime;
 };
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FACE_WEBSOCKET_CHANNEL_FIXTURE_HPP

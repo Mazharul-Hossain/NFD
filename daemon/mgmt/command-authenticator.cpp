@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,16 +26,16 @@
 #include "command-authenticator.hpp"
 #include "common/logger.hpp"
 
-#include <ndn-cxx/tag.hpp>
 #include <ndn-cxx/security/certificate-fetcher-offline.hpp>
 #include <ndn-cxx/security/certificate-request.hpp>
 #include <ndn-cxx/security/validation-policy.hpp>
 #include <ndn-cxx/security/validation-policy-accept-all.hpp>
 #include <ndn-cxx/security/validation-policy-command-interest.hpp>
-#include <ndn-cxx/security/validator.hpp>
+#include <ndn-cxx/tag.hpp>
 #include <ndn-cxx/util/io.hpp>
 
-#include <boost/filesystem.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 
 namespace security = ndn::security;
 
@@ -45,25 +45,28 @@ NFD_LOG_INIT(CommandAuthenticator);
 // INFO: configuration change, etc
 // DEBUG: per authentication request result
 
-/** \brief an Interest tag to indicate command signer
+/**
+ * \brief An Interest tag to store the command signer.
  */
 using SignerTag = ndn::SimpleTag<Name, 20>;
 
-/** \brief obtain signer from SignerTag attached to Interest, if available
+/**
+ * \brief Obtain signer from a SignerTag attached to \p interest, if available.
  */
-static optional<std::string>
+static std::optional<std::string>
 getSignerFromTag(const Interest& interest)
 {
-  shared_ptr<SignerTag> signerTag = interest.getTag<SignerTag>();
+  auto signerTag = interest.getTag<SignerTag>();
   if (signerTag == nullptr) {
-    return nullopt;
+    return std::nullopt;
   }
   else {
     return signerTag->get().toUri();
   }
 }
 
-/** \brief a validation policy that only permits Interest signed by a trust anchor
+/**
+ * \brief A validation policy that only permits Interests signed by a trust anchor.
  */
 class CommandAuthenticatorValidationPolicy final : public security::ValidationPolicy
 {
@@ -72,7 +75,11 @@ public:
   checkPolicy(const Interest& interest, const shared_ptr<security::ValidationState>& state,
               const ValidationContinuation& continueValidation) final
   {
-    Name klName = getKeyLocatorName(interest, *state);
+    auto sigInfo = getSignatureInfo(interest, *state);
+    if (!state->getOutcome()) { // already failed
+      return;
+    }
+    Name klName = getKeyLocatorName(sigInfo, *state);
     if (!state->getOutcome()) { // already failed
       return;
     }
@@ -80,7 +87,7 @@ public:
     // SignerTag must be placed on the 'original Interest' in ValidationState to be available for
     // InterestValidationSuccessCallback. The 'interest' parameter refers to a different instance
     // which is copied into 'original Interest'.
-    auto state1 = dynamic_pointer_cast<security::InterestValidationState>(state);
+    auto state1 = std::dynamic_pointer_cast<security::InterestValidationState>(state);
     state1->getOriginalInterest().setTag(make_shared<SignerTag>(klName));
 
     continueValidation(make_shared<security::CertificateRequest>(klName), state);
@@ -129,11 +136,10 @@ CommandAuthenticator::processConfig(const ConfigSection& section, bool isDryRun,
   }
 
   int authSectionIndex = 0;
-  for (const auto& kv : section) {
-    if (kv.first != "authorize") {
-      NDN_THROW(ConfigFile::Error("'" + kv.first + "' section is not permitted under 'authorizations'"));
+  for (const auto& [sectionName, authSection] : section) {
+    if (sectionName != "authorize") {
+      NDN_THROW(ConfigFile::Error("'" + sectionName + "' section is not permitted under 'authorizations'"));
     }
-    const ConfigSection& authSection = kv.second;
 
     std::string certfile;
     try {
@@ -141,7 +147,7 @@ CommandAuthenticator::processConfig(const ConfigSection& section, bool isDryRun,
     }
     catch (const boost::property_tree::ptree_error&) {
       NDN_THROW(ConfigFile::Error("'certfile' is missing under authorize[" +
-                                  to_string(authSectionIndex) + "]"));
+                                  std::to_string(authSectionIndex) + "]"));
     }
 
     bool isAny = false;
@@ -157,7 +163,7 @@ CommandAuthenticator::processConfig(const ConfigSection& section, bool isDryRun,
       cert = ndn::io::load<security::Certificate>(certfilePath.string());
       if (cert == nullptr) {
         NDN_THROW(ConfigFile::Error("cannot load certfile " + certfilePath.string() +
-                                    " for authorize[" + to_string(authSectionIndex) + "]"));
+                                    " for authorize[" + std::to_string(authSectionIndex) + "]"));
       }
     }
 
@@ -167,7 +173,7 @@ CommandAuthenticator::processConfig(const ConfigSection& section, bool isDryRun,
     }
     catch (const boost::property_tree::ptree_error&) {
       NDN_THROW(ConfigFile::Error("'privileges' is missing under authorize[" +
-                                  to_string(authSectionIndex) + "]"));
+                                  std::to_string(authSectionIndex) + "]"));
     }
 
     if (privSection->empty()) {
@@ -178,7 +184,7 @@ CommandAuthenticator::processConfig(const ConfigSection& section, bool isDryRun,
       auto found = m_validators.find(module);
       if (found == m_validators.end()) {
         NDN_THROW(ConfigFile::Error("unknown module '" + module +
-                                    "' under authorize[" + to_string(authSectionIndex) + "]"));
+                                    "' under authorize[" + std::to_string(authSectionIndex) + "]"));
       }
 
       if (isDryRun) {
@@ -207,11 +213,10 @@ CommandAuthenticator::makeAuthorization(const std::string& module, const std::st
 {
   m_validators[module]; // declares module, so that privilege is recognized
 
-  auto self = this->shared_from_this();
-  return [=] (const Name&, const Interest& interest,
-              const ndn::mgmt::ControlParameters*,
-              const ndn::mgmt::AcceptContinuation& accept,
-              const ndn::mgmt::RejectContinuation& reject) {
+  return [module, self = shared_from_this()] (const Name&, const Interest& interest,
+                                              const ndn::mgmt::ControlParameters*,
+                                              const ndn::mgmt::AcceptContinuation& accept,
+                                              const ndn::mgmt::RejectContinuation& reject) {
     auto validator = self->m_validators.at(module);
 
     auto successCb = [accept, validator] (const Interest& interest1) {
@@ -223,19 +228,13 @@ CommandAuthenticator::makeAuthorization(const std::string& module, const std::st
       accept(signer);
     };
 
-    auto failureCb = [reject] (const Interest& interest1, const security::ValidationError& err) {
-      using ndn::mgmt::RejectReply;
-      RejectReply reply = RejectReply::STATUS403;
-      switch (err.getCode()) {
-      case security::ValidationError::NO_SIGNATURE:
-      case security::ValidationError::INVALID_KEY_LOCATOR:
-        reply = RejectReply::SILENT;
-        break;
-      case security::ValidationError::POLICY_ERROR:
-        if (interest1.getName().size() < ndn::command_interest::MIN_SIZE) { // "name too short"
-          reply = RejectReply::SILENT;
-        }
-        break;
+    using ndn::security::ValidationError;
+    auto failureCb = [reject] (const Interest& interest1, const ValidationError& err) {
+      auto reply = ndn::mgmt::RejectReply::STATUS403;
+      if (err.getCode() == ValidationError::MALFORMED_SIGNATURE ||
+          err.getCode() == ValidationError::INVALID_KEY_LOCATOR) {
+        // do not waste cycles signing and sending a reply if the command is clearly malformed
+        reply = ndn::mgmt::RejectReply::SILENT;
       }
       NFD_LOG_DEBUG("reject " << interest1.getName() << " signer=" <<
                     getSignerFromTag(interest1).value_or("?") << " reason=" << err);

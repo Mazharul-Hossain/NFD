@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,12 +31,11 @@
 #include <fstream>
 #include <sstream>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(TestConfigFile)
 
-static const std::string CONFIG = R"CONFIG(
+const std::string CONFIG = R"CONFIG(
   a
   {
     akey avalue
@@ -48,8 +47,8 @@ static const std::string CONFIG = R"CONFIG(
 )CONFIG";
 
 // counts of the respective section counts in config_example.info
-const int CONFIG_N_A_SECTIONS = 1;
-const int CONFIG_N_B_SECTIONS = 1;
+constexpr int CONFIG_N_A_SECTIONS = 1;
+constexpr int CONFIG_N_B_SECTIONS = 1;
 
 class DummySubscriber
 {
@@ -429,5 +428,4 @@ BOOST_AUTO_TEST_CASE(CheckRange)
 
 BOOST_AUTO_TEST_SUITE_END() // TestConfigFile
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

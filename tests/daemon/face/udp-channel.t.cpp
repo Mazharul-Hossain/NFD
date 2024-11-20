@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,18 +26,15 @@
 #include "udp-channel-fixture.hpp"
 
 #include "test-ip.hpp"
-#include <boost/mpl/vector.hpp>
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include <boost/mp11/list.hpp>
+
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_FIXTURE_TEST_SUITE(TestUdpChannel, UdpChannelFixture)
 
-using AddressFamilies = boost::mpl::vector<
-  std::integral_constant<AddressFamily, AddressFamily::V4>,
-  std::integral_constant<AddressFamily, AddressFamily::V6>>;
+using AddressFamilies = boost::mp11::mp_list_c<AddressFamily, AddressFamily::V4, AddressFamily::V6>;
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(DefaultMtu, F, AddressFamilies)
 {
@@ -45,7 +42,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(DefaultMtu, F, AddressFamilies)
   SKIP_IF_IP_UNAVAILABLE(address);
   this->listen(address,1452);
 
-  auto ch1 = this->makeChannel(typename IpAddressFromFamily<F::value>::type(), 0, 1232);
+  auto ch1 = this->makeChannel(IpAddressTypeFromFamily<F::value>(), 0, 1232);
   connect(*ch1);
 
   BOOST_CHECK_EQUAL(this->limitedIo.run(2, 1_s), LimitedIo::EXCEED_OPS);
@@ -64,6 +61,4 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(DefaultMtu, F, AddressFamilies)
 BOOST_AUTO_TEST_SUITE_END() // TestUdpChannel
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

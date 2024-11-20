@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,10 +27,7 @@
 
 #include "status-fixture.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+namespace nfd::tools::nfdc::tests {
 
 const std::string STATUS_XML = stripXmlSpaces(R"XML(
   <?xml version="1.0"?>
@@ -48,7 +45,7 @@ module2
 class DummyModule : public Module
 {
 public:
-  DummyModule(const std::string& moduleName, boost::asio::io_service& io)
+  DummyModule(const std::string& moduleName, boost::asio::io_context& io)
     : m_moduleName(moduleName)
     , m_scheduler(io)
     , m_res(0)
@@ -56,22 +53,22 @@ public:
   {
   }
 
-  /** \brief cause fetchStatus to succeed or fail
+  /** \brief Cause fetchStatus() to succeed or fail.
    *  \param res zero to succeed, non-zero to fail with specific code
-   *  \param delay duration from fetchStatus invocation to succeed or fail; must be positive
+   *  \param delay duration from fetchStatus() invocation to succeed or fail; must be positive
    */
   void
   setResult(uint32_t res, time::nanoseconds delay)
   {
-    BOOST_ASSERT(delay > time::nanoseconds::zero());
+    BOOST_ASSERT(delay > 0_ns);
     m_res = res;
     m_delay = delay;
   }
 
   void
-  fetchStatus(Controller&,
+  fetchStatus(ndn::nfd::Controller&,
               const std::function<void()>& onSuccess,
-              const Controller::DatasetFailCallback& onFailure,
+              const ndn::nfd::DatasetFailureCallback& onFailure,
               const CommandOptions&) final
   {
     ++nFetchStatusCalls;
@@ -80,7 +77,7 @@ public:
         onSuccess();
       }
       else {
-        onFailure(m_res, m_moduleName + " fails with code " + to_string(m_res));
+        onFailure(m_res, m_moduleName + " fails with code " + std::to_string(m_res));
       }
     });
   }
@@ -102,7 +99,7 @@ public:
 
 private:
   std::string m_moduleName;
-  Scheduler m_scheduler;
+  ndn::Scheduler m_scheduler;
   uint32_t m_res;
   time::nanoseconds m_delay;
 };
@@ -120,7 +117,7 @@ public:
   std::function<void()> processEventsFunc;
 };
 
-class StatusReportModulesFixture : public IoFixture, public KeyChainFixture
+class StatusReportModulesFixture : public nfd::tests::IoFixture, public nfd::tests::KeyChainFixture
 {
 protected:
   StatusReportModulesFixture()
@@ -152,9 +149,9 @@ protected:
   }
 
 protected:
-  ndn::util::DummyClientFace face;
+  ndn::DummyClientFace face;
   ValidatorNull validator;
-  Controller controller;
+  ndn::nfd::Controller controller;
   StatusReportTester report;
 
   uint32_t res;
@@ -211,7 +208,4 @@ BOOST_AUTO_TEST_CASE(Error)
 BOOST_AUTO_TEST_SUITE_END() // TestStatusReport
 BOOST_AUTO_TEST_SUITE_END() // Nfdc
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests

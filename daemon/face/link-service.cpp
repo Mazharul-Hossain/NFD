@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,23 +26,14 @@
 #include "link-service.hpp"
 #include "face.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(LinkService);
 
-LinkService::LinkService()
-  : m_face(nullptr)
-  , m_transport(nullptr)
-{
-}
-
-LinkService::~LinkService()
-{
-}
+LinkService::~LinkService() = default;
 
 void
-LinkService::setFaceAndTransport(Face& face, Transport& transport)
+LinkService::setFaceAndTransport(Face& face, Transport& transport) noexcept
 {
   BOOST_ASSERT(m_face == nullptr);
   BOOST_ASSERT(m_transport == nullptr);
@@ -135,5 +126,4 @@ operator<<(std::ostream& os, const FaceLogHelper<LinkService>& flh)
   return os;
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

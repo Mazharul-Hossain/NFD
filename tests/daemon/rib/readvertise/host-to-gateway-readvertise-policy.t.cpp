@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,11 +29,9 @@
 #include "tests/key-chain-fixture.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace rib {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::rib;
 
 class HostToGatewayReadvertisePolicyFixture : public GlobalIoFixture, public KeyChainFixture
 {
@@ -56,7 +54,7 @@ public:
   }
 };
 
-BOOST_AUTO_TEST_SUITE(Readvertise)
+BOOST_AUTO_TEST_SUITE(Rib)
 BOOST_FIXTURE_TEST_SUITE(TestHostToGatewayReadvertisePolicy, HostToGatewayReadvertisePolicyFixture)
 
 BOOST_AUTO_TEST_CASE(PrefixToAdvertise)
@@ -65,7 +63,7 @@ BOOST_AUTO_TEST_CASE(PrefixToAdvertise)
   BOOST_REQUIRE(m_keyChain.createIdentity("/A/B"));
   BOOST_REQUIRE(m_keyChain.createIdentity("/C/nrd"));
 
-  auto test = [this] (Name routeName, optional<ReadvertiseAction> expectedAction) {
+  auto test = [this] (Name routeName, std::optional<ReadvertiseAction> expectedAction) {
     auto policy = makePolicy();
     auto action = policy->handleNewRoute(makeNewRoute(routeName));
 
@@ -79,7 +77,7 @@ BOOST_AUTO_TEST_CASE(PrefixToAdvertise)
     }
   };
 
-  test("/D/app", nullopt);
+  test("/D/app", std::nullopt);
   test("/A/B/app", ReadvertiseAction{"/A", ndn::security::signingByIdentity("/A")});
   test("/C/nrd", ReadvertiseAction{"/C", ndn::security::signingByIdentity("/C/nrd")});
 }
@@ -107,8 +105,6 @@ BOOST_AUTO_TEST_CASE(LoadRefreshInterval)
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestHostToGatewayReadvertisePolicy
-BOOST_AUTO_TEST_SUITE_END() // Readvertise
+BOOST_AUTO_TEST_SUITE_END() // Rib
 
-} // namespace tests
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::tests

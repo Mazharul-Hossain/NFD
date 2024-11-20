@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,11 +30,7 @@
 
 #include "tests/daemon/limited-io.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
-
-using namespace nfd::tests;
+namespace nfd::tests {
 
 /** \brief Extends strategy S for unit testing.
  *
@@ -72,11 +68,11 @@ public:
     return name;
   }
 
-  /** \brief Signal emitted after each action
+  /** \brief Signal emitted after each action.
    */
   signal::Signal<StrategyTester<S>> afterAction;
 
-  /** \brief execute f and wait for a number of strategy actions
+  /** \brief Execute f and wait for a number of strategy actions.
    *  \note The actions may occur either during f() invocation or afterwards.
    *  \return whether expected number of actions have occurred
    */
@@ -91,7 +87,7 @@ public:
       ++nActions;
     });
 
-    std::forward<F>(f)();
+    std::invoke(std::forward<F>(f));
 
     if (nActions < nExpectedActions) {
       // If strategy doesn't forward anything (e.g., decides not to forward an Interest), the number
@@ -103,8 +99,7 @@ public:
 
 protected:
   pit::OutRecord*
-  sendInterest(const Interest& interest, Face& egress,
-               const shared_ptr<pit::Entry>& pitEntry) override
+  sendInterest(const Interest& interest, Face& egress, const shared_ptr<pit::Entry>& pitEntry) override
   {
     sendInterestHistory.push_back({pitEntry->getInterest(), egress.getId(), interest});
     auto it = pitEntry->insertOrUpdateOutRecord(egress, interest);
@@ -121,11 +116,21 @@ protected:
   }
 
   bool
-  sendNack(const lp::NackHeader& header, Face& egress,
-           const shared_ptr<pit::Entry>& pitEntry) override
+  sendNack(const lp::NackHeader& header, Face& egress, const shared_ptr<pit::Entry>& pitEntry) override
   {
     sendNackHistory.push_back({pitEntry->getInterest(), egress.getId(), header});
-    pitEntry->deleteInRecord(egress);
+    auto it = pitEntry->findInRecord(egress);
+    if (it != pitEntry->in_end()) {
+      pitEntry->deleteInRecord(it);
+    }
+    afterAction();
+    return true;
+  }
+
+  bool
+  sendNack(const lp::Nack& nack, Face& egress) override
+  {
+    sendNackHistory.push_back({nack.getInterest(), egress.getId(), nack.getHeader()});
     afterAction();
     return true;
   }
@@ -154,8 +159,6 @@ public:
   std::vector<SendNackArgs> sendNackHistory;
 };
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FW_STRATEGY_TESTER_HPP

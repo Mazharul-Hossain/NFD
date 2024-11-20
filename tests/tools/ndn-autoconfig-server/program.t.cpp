@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,10 +32,7 @@
 #include <ndn-cxx/util/dummy-client-face.hpp>
 #include <ndn-cxx/util/segment-fetcher.hpp>
 
-namespace ndn {
-namespace tools {
-namespace autoconfig_server {
-namespace tests {
+namespace ndn::autoconfig_server::tests {
 
 class AutoconfigServerFixture : public ::nfd::tests::KeyChainFixture
 {
@@ -49,7 +46,7 @@ protected:
   }
 
 protected:
-  util::DummyClientFace face{{true, true}};
+  DummyClientFace face{{true, true}};
   unique_ptr<Program> program;
 };
 
@@ -76,7 +73,6 @@ BOOST_AUTO_TEST_CASE(HubData)
 
   // interest2 asks for a different version, and should not be responded
   Interest interest2(Name(interest.getName()).appendVersion(dataName.at(-1).toVersion() - 1));
-  interest2.setCanBePrefix(false);
   face.receive(interest2);
   face.processEvents(1_s);
   BOOST_CHECK_EQUAL(face.sentData.size(), 1);
@@ -92,12 +88,11 @@ BOOST_AUTO_TEST_CASE(RoutablePrefixesDataset)
   }
   this->initialize(options);
 
-  util::DummyClientFace clientFace(face.getIoService());
+  DummyClientFace clientFace(face.getIoContext());
   clientFace.linkTo(face);
 
   Name baseName("/localhop/nfd/rib/routable-prefixes");
-  auto fetcher = util::SegmentFetcher::start(clientFace, Interest(baseName),
-                                             security::getAcceptAllValidator());
+  auto fetcher = SegmentFetcher::start(clientFace, Interest(baseName), security::getAcceptAllValidator());
   fetcher->afterSegmentReceived.connect([baseName] (const Data& data) {
     const Name& dataName = data.getName();
     BOOST_CHECK_EQUAL(dataName.size(), baseName.size() + 2);
@@ -137,7 +132,4 @@ BOOST_AUTO_TEST_CASE(RoutablePrefixesDisabled)
 BOOST_AUTO_TEST_SUITE_END() // TestProgram
 BOOST_AUTO_TEST_SUITE_END() // NdnAutoconfigServer
 
-} // namespace tests
-} // namespace autoconfig_server
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig_server::tests

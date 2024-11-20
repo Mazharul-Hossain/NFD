@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,11 +26,10 @@
 #include "cs-module.hpp"
 #include "format-helpers.hpp"
 
+#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
 #include <ndn-cxx/util/indented-stream.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 void
 CsModule::registerCommands(CommandParser& parser)
@@ -131,9 +130,9 @@ CsModule::erase(ExecuteContext& ctx)
 }
 
 void
-CsModule::fetchStatus(Controller& controller,
+CsModule::fetchStatus(ndn::nfd::Controller& controller,
                       const std::function<void()>& onSuccess,
-                      const Controller::DatasetFailCallback& onFailure,
+                      const ndn::nfd::DatasetFailureCallback& onFailure,
                       const CommandOptions& options)
 {
   controller.fetch<ndn::nfd::CsInfoDataset>(
@@ -184,6 +183,4 @@ CsModule::formatItemText(std::ostream& os, const CsInfo& item)
      << ia.end();
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

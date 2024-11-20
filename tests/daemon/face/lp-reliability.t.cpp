@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,7 +24,6 @@
  */
 
 #include "face/lp-reliability.hpp"
-#include "face/face.hpp"
 #include "face/generic-link-service.hpp"
 
 #include "tests/test-common.hpp"
@@ -32,13 +31,14 @@
 #include "dummy-face.hpp"
 #include "dummy-transport.hpp"
 
+#include <ndn-cxx/lp/fields.hpp>
+
 #include <cstring>
+#include <unordered_set>
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::face;
 
 class DummyLpReliabilityLinkService : public GenericLinkService
 {
@@ -54,7 +54,6 @@ public:
   {
     if (frags.front().has<lp::FragmentField>()) {
       Interest interest("/test/prefix");
-      interest.setCanBePrefix(false);
       lp::Packet pkt;
       pkt.add<lp::FragmentField>({interest.wireEncode().begin(), interest.wireEncode().end()});
       assignSequences(frags);
@@ -118,7 +117,7 @@ public:
                        [txSeq] (auto fragIt) { return fragIt->first == txSeq; });
   }
 
-  /** \brief make an LpPacket with fragment of specified size
+  /** \brief Make an LpPacket with fragment of specified size.
    *  \param pktNum packet identifier, which can be extracted with \p getPktNum
    *  \param payloadSize total payload size; must be >= 4 and <= 255
    */
@@ -133,15 +132,14 @@ public:
     return pkt;
   }
 
-  /** \brief extract packet identifier from LpPacket made with \p makeFrag
+  /** \brief Extract packet identifier from LpPacket made with \p makeFrag.
    *  \retval 0 packet identifier cannot be extracted
    */
   static uint32_t
   getPktNum(const lp::Packet& pkt)
   {
     BOOST_REQUIRE(pkt.has<lp::FragmentField>());
-    ndn::Buffer::const_iterator begin, end;
-    std::tie(begin, end) = pkt.get<lp::FragmentField>();
+    auto [begin, end] = pkt.get<lp::FragmentField>();
     if (std::distance(begin, end) < 4) {
       return 0;
     }
@@ -994,7 +992,6 @@ BOOST_AUTO_TEST_CASE(TrackRecentReceivedLpPackets)
 BOOST_AUTO_TEST_CASE(DropDuplicateReceivedSequence)
 {
   Interest interest("/test/prefix");
-  interest.setCanBePrefix(false);
   lp::Packet pkt1;
   pkt1.add<lp::FragmentField>({interest.wireEncode().begin(), interest.wireEncode().end()});
   pkt1.add<lp::SequenceField>(7);
@@ -1045,6 +1042,4 @@ BOOST_AUTO_TEST_CASE(DropDuplicateAckForRetx)
 BOOST_AUTO_TEST_SUITE_END() // TestLpReliability
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

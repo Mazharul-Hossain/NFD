@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,25 +27,21 @@
 #include "rib/rib-update-batch.hpp"
 
 #include "tests/test-common.hpp"
-#include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/rib/create-route.hpp"
 
-namespace nfd {
-namespace rib {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::rib;
 
-BOOST_FIXTURE_TEST_SUITE(TestRibUpdate, GlobalIoFixture)
+BOOST_AUTO_TEST_SUITE(Rib)
+BOOST_AUTO_TEST_SUITE(TestRibUpdate)
 
-BOOST_AUTO_TEST_CASE(BatchBasic)
+BOOST_AUTO_TEST_CASE(Batch)
 {
   const uint64_t faceId = 1;
-
   RibUpdateBatch batch(faceId);
 
   Route routeRegister = createRoute(faceId, 128, 10, ndn::nfd::ROUTE_FLAG_CHILD_INHERIT);
-
   RibUpdate registerUpdate;
   registerUpdate.setAction(RibUpdate::REGISTER)
                 .setName("/a")
@@ -56,7 +52,6 @@ BOOST_AUTO_TEST_CASE(BatchBasic)
   BOOST_CHECK_EQUAL(batch.getFaceId(), faceId);
 
   Route routeUnregister = createRoute(faceId, 0, 0, ndn::nfd::ROUTE_FLAG_CAPTURE);
-
   RibUpdate unregisterUpdate;
   unregisterUpdate.setAction(RibUpdate::UNREGISTER)
                   .setName("/a/b")
@@ -65,7 +60,7 @@ BOOST_AUTO_TEST_CASE(BatchBasic)
   batch.add(unregisterUpdate);
 
   BOOST_REQUIRE_EQUAL(batch.size(), 2);
-  RibUpdateBatch::const_iterator it = batch.begin();
+  auto it = batch.begin();
 
   BOOST_CHECK_EQUAL(it->getAction(), RibUpdate::REGISTER);
   BOOST_CHECK_EQUAL(it->getName(), "/a");
@@ -81,7 +76,6 @@ BOOST_AUTO_TEST_CASE(BatchBasic)
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestRibUpdate
+BOOST_AUTO_TEST_SUITE_END() // Rib
 
-} // namespace tests
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::tests

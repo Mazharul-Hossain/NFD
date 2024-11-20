@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,11 +30,9 @@
 #include "tests/daemon/face/dummy-face.hpp"
 #include "strategy-tester.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
 
-using BestRouteStrategyTester = StrategyTester<BestRouteStrategy>;
+using BestRouteStrategyTester = StrategyTester<fw::BestRouteStrategy>;
 NFD_REGISTER_STRATEGY(BestRouteStrategyTester);
 
 BOOST_AUTO_TEST_SUITE(Fw)
@@ -83,24 +81,24 @@ BOOST_AUTO_TEST_CASE(Forward)
   shared_ptr<pit::Entry> pitEntry = pit.insert(*interest).first;
 
   const auto TICK = time::duration_cast<time::nanoseconds>(
-                      BestRouteStrategy::RETX_SUPPRESSION_INITIAL * 0.1);
+                      fw::RetxSuppressionExponential::DEFAULT_INITIAL_INTERVAL * 0.1);
 
   // first Interest goes to nexthop with lowest FIB cost,
   // however face1 is downstream so it cannot be used
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
   BOOST_REQUIRE_EQUAL(strategy.sendInterestHistory.size(), 1);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.back().outFaceId, face2->getId());
 
   // downstream retransmits frequently, but the strategy should not send Interests
   // more often than DEFAULT_MIN_RETX_INTERVAL
-  scheduler::EventId retxFrom4Evt;
+  ndn::scheduler::EventId retxFrom4Evt;
   size_t nSentLast = strategy.sendInterestHistory.size();
   auto timeSentLast = time::steady_clock::now();
   std::function<void()> periodicalRetxFrom4; // let periodicalRetxFrom4 lambda capture itself
   periodicalRetxFrom4 = [&] {
     pitEntry->insertOrUpdateInRecord(*face4, *interest);
-    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face4, 0), pitEntry);
+    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face4), pitEntry);
 
     size_t nSent = strategy.sendInterestHistory.size();
     if (nSent > nSentLast) {
@@ -114,7 +112,7 @@ BOOST_AUTO_TEST_CASE(Forward)
     retxFrom4Evt = getScheduler().schedule(TICK * 5, periodicalRetxFrom4);
   };
   periodicalRetxFrom4();
-  this->advanceClocks(TICK, BestRouteStrategy::RETX_SUPPRESSION_MAX * 16);
+  this->advanceClocks(TICK, fw::RetxSuppressionExponential::DEFAULT_MAX_INTERVAL * 16);
   retxFrom4Evt.cancel();
 
   // nexthops for accepted retransmissions: follow FIB cost,
@@ -130,9 +128,9 @@ BOOST_AUTO_TEST_CASE(Forward)
 
   strategy.sendInterestHistory.clear();
   for (int i = 0; i < 3; ++i) {
-    this->advanceClocks(TICK, BestRouteStrategy::RETX_SUPPRESSION_MAX * 2);
+    this->advanceClocks(TICK, fw::RetxSuppressionExponential::DEFAULT_MAX_INTERVAL * 2);
     pitEntry->insertOrUpdateInRecord(*face5, *interest);
-    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face5, 0), pitEntry);
+    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face5), pitEntry);
   }
   BOOST_REQUIRE_EQUAL(strategy.sendInterestHistory.size(), 3);
   BOOST_CHECK_NE(strategy.sendInterestHistory[0].outFaceId, face1->getId());
@@ -144,6 +142,4 @@ BOOST_AUTO_TEST_CASE(Forward)
 BOOST_AUTO_TEST_SUITE_END() // TestBestRouteStrategy
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

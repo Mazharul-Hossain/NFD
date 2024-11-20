@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,9 +28,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 namespace xml {
 
@@ -128,14 +126,13 @@ operator<<(std::ostream& os, const Spaces& spaces)
   return os;
 }
 
-Separator::Separator(const std::string& first, const std::string& subsequent)
+Separator::Separator(std::string_view first, std::string_view subsequent)
   : m_first(first)
   , m_subsequent(subsequent)
-  , m_count(0)
 {
 }
 
-Separator::Separator(const std::string& subsequent)
+Separator::Separator(std::string_view subsequent)
   : Separator("", subsequent)
 {
 }
@@ -152,7 +149,6 @@ operator<<(std::ostream& os, Separator& sep)
 ItemAttributes::ItemAttributes(bool wantMultiLine, int maxAttributeWidth)
   : m_wantMultiLine(wantMultiLine)
   , m_maxAttributeWidth(maxAttributeWidth)
-  , m_count(0)
 {
 }
 
@@ -206,6 +202,4 @@ formatTimestamp(time::system_clock::time_point t)
 
 } // namespace text
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

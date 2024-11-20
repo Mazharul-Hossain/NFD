@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,17 +29,15 @@
 #include "multicast-discovery.hpp"
 #include "ndn-fch-discovery.hpp"
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
 using nfd::ControlParameters;
 using nfd::ControlResponse;
 
-const time::nanoseconds FACEURI_CANONIZE_TIMEOUT = 4_s;
+constexpr time::nanoseconds FACEURI_CANONIZE_TIMEOUT = 4_s;
 const std::vector<Name> HUB_PREFIXES{"/", "/localhop/nfd"};
-const nfd::RouteOrigin HUB_ROUTE_ORIGIN = nfd::ROUTE_ORIGIN_AUTOCONF;
-const uint64_t HUB_ROUTE_COST = 100;
+constexpr nfd::RouteOrigin HUB_ROUTE_ORIGIN = nfd::ROUTE_ORIGIN_AUTOCONF;
+constexpr uint64_t HUB_ROUTE_COST = 100;
 
 Procedure::Procedure(Face& face, KeyChain& keyChain)
   : m_face(face)
@@ -110,7 +108,7 @@ Procedure::connect(const FaceUri& hubFaceUri)
       std::cerr << "Failed to canonize HUB FaceUri: " << reason << std::endl;
       this->onComplete(false);
     },
-    m_face.getIoService(), FACEURI_CANONIZE_TIMEOUT);
+    m_face.getIoContext(), FACEURI_CANONIZE_TIMEOUT);
 }
 
 void
@@ -138,6 +136,4 @@ Procedure::registerPrefixes(uint64_t hubFaceId, size_t index)
     });
 }
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig

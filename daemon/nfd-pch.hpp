@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,39 +23,23 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "canonizer.hpp"
+#ifndef NFD_DAEMON_NFD_PCH_HPP
+#define NFD_DAEMON_NFD_PCH_HPP
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include "core/common.hpp"
 
-std::pair<optional<FaceUri>, std::string>
-canonize(ExecuteContext& ctx, const FaceUri& uri)
-{
-  optional<FaceUri> result;
-  std::string error;
-  uri.canonize(
-    [&result] (const FaceUri& canonicalUri) { result = canonicalUri; },
-    [&error] (const std::string& errorReason) { error = errorReason; },
-    ctx.face.getIoService(), ctx.getTimeout());
-  ctx.face.processEvents();
+#include <functional>
+#include <map>
+#include <set>
 
-  return {result, error};
-}
+#include <boost/lexical_cast.hpp>
+#include <boost/property_tree/ptree.hpp>
 
-std::pair<FindFace::Code, std::string>
-canonizeErrorHelper(const FaceUri& uri,
-                    const std::string& error,
-                    const std::string& field)
-{
-  std::string msg = "Error during canonization of ";
-  if (!field.empty()) {
-    msg += field + " ";
-  }
-  msg += "'" + uri.toString() + "': " + error;
-  return {FindFace::Code::CANONIZE_ERROR, msg};
-}
+#include <ndn-cxx/lp/packet.hpp>
+#include <ndn-cxx/mgmt/dispatcher.hpp>
+#include <ndn-cxx/mgmt/nfd/controller.hpp>
+#include <ndn-cxx/net/face-uri.hpp>
+#include <ndn-cxx/security/validator.hpp>
+#include <ndn-cxx/util/logger.hpp>
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+#endif // NFD_DAEMON_NFD_PCH_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -38,12 +38,9 @@
 #include <ndn-cxx/transport/tcp-transport.hpp>
 #include <ndn-cxx/transport/unix-transport.hpp>
 
-namespace nfd {
-namespace rib {
+namespace nfd::rib {
 
 NFD_LOG_INIT(RibService);
-
-Service* Service::s_instance = nullptr;
 
 const std::string CFG_RIB = "rib";
 const std::string CFG_LOCALHOST_SECURITY = "localhost_security";
@@ -52,8 +49,8 @@ const std::string CFG_PA_VALIDATION = "prefix_announcement_validation";
 const std::string CFG_PREFIX_PROPAGATE = "auto_prefix_propagate";
 const std::string CFG_READVERTISE_NLSR = "readvertise_nlsr";
 const Name READVERTISE_NLSR_PREFIX = "/localhost/nlsr";
-const uint64_t PROPAGATE_DEFAULT_COST = 15;
-const time::milliseconds PROPAGATE_DEFAULT_TIMEOUT = 10_s;
+constexpr uint64_t PROPAGATE_DEFAULT_COST = 15;
+constexpr time::milliseconds PROPAGATE_DEFAULT_TIMEOUT = 10_s;
 
 static ConfigSection
 loadConfigSectionFromFile(const std::string& filename)
@@ -64,19 +61,16 @@ loadConfigSectionFromFile(const std::string& filename)
   return config;
 }
 
-/**
- * \brief Look into the config file and construct appropriate transport to communicate with NFD
- * If NFD-RIB instance was initialized with config file, INFO format is assumed
- */
+// Look into NFD's config file and construct an appropriate transport to communicate with NFD.
 static shared_ptr<ndn::Transport>
 makeLocalNfdTransport(const ConfigSection& config)
 {
   if (config.get_child_optional("face_system.unix")) {
     // default socket path should be the same as in UnixStreamFactory::processConfig
 #ifdef __linux__
-    auto path = config.get<std::string>("face_system.unix.path", "/run/nfd.sock");
+    auto path = config.get<std::string>("face_system.unix.path", "/run/nfd/nfd.sock");
 #else
-    auto path = config.get<std::string>("face_system.unix.path", "/var/run/nfd.sock");
+    auto path = config.get<std::string>("face_system.unix.path", "/var/run/nfd/nfd.sock");
 #endif // __linux__
     return make_shared<ndn::UnixTransport>(path);
   }
@@ -267,5 +261,4 @@ Service::applyConfig(const ConfigSection& section, const std::string& filename)
   }
 }
 
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::rib

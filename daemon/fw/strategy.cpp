@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,9 +31,9 @@
 
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/algorithm/copy.hpp>
+#include <unordered_set>
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
 NFD_LOG_INIT(Strategy);
 
@@ -127,7 +127,7 @@ Strategy::parseInstanceName(const Name& input)
       return {input.getPrefix(i + 1), input[i].toVersion(), input.getSubName(i + 1)};
     }
   }
-  return {input, nullopt, PartialName()};
+  return {input, std::nullopt, PartialName()};
 }
 
 Name
@@ -140,6 +140,29 @@ Strategy::makeInstanceName(const Name& input, const Name& strategyName)
   return hasVersion ? input : Name(input).append(strategyName.at(-1));
 }
 
+StrategyParameters
+Strategy::parseParameters(const PartialName& params)
+{
+  StrategyParameters parsed;
+
+  for (const auto& component : params) {
+    auto sep = std::find(component.value_begin(), component.value_end(), '~');
+    if (sep == component.value_end()) {
+      NDN_THROW(std::invalid_argument("Strategy parameters format is (<parameter>~<value>)*"));
+    }
+
+    std::string p(component.value_begin(), sep);
+    std::advance(sep, 1);
+    std::string v(sep, component.value_end());
+    if (p.empty() || v.empty()) {
+      NDN_THROW(std::invalid_argument("Strategy parameter name and value cannot be empty"));
+    }
+    parsed[std::move(p)] = std::move(v);
+  }
+
+  return parsed;
+}
+
 Strategy::Strategy(Forwarder& forwarder)
   : afterAddFace(forwarder.m_faceTable.afterAdd)
   , beforeRemoveFace(forwarder.m_faceTable.beforeRemove)
@@ -149,6 +172,16 @@ Strategy::Strategy(Forwarder& forwarder)
 }
 
 Strategy::~Strategy() = default;
+
+void
+Strategy::onInterestLoop(const Interest& interest, const FaceEndpoint& ingress)
+{
+  NFD_LOG_DEBUG("onInterestLoop in=" << ingress << " name=" << interest.getName());
+
+  lp::Nack nack(interest);
+  nack.setReason(lp::NackReason::DUPLICATE);
+  this->sendNack(nack, ingress.face);
+}
 
 void
 Strategy::afterContentStoreHit(const Data& data, const FaceEndpoint& ingress,
@@ -215,20 +248,19 @@ Strategy::sendData(const Data& data, Face& egress, const shared_ptr<pit::Entry>&
 {
   BOOST_ASSERT(pitEntry->getInterest().matchesData(data));
 
-  shared_ptr<lp::PitToken> pitToken;
-  auto inRecord = pitEntry->getInRecord(egress);
+  auto inRecord = pitEntry->findInRecord(egress);
   if (inRecord != pitEntry->in_end()) {
-    pitToken = inRecord->getInterest().getTag<lp::PitToken>();
-  }
+    auto pitToken = inRecord->getInterest().getTag<lp::PitToken>();
 
-  // delete the PIT entry's in-record based on egress,
-  // since the Data is sent to the face from which the Interest was received
-  pitEntry->deleteInRecord(egress);
+    // delete the PIT entry's in-record based on egress,
+    // since the Data is sent to the face from which the Interest was received
+    pitEntry->deleteInRecord(inRecord);
 
-  if (pitToken != nullptr) {
-    Data data2 = data; // make a copy so each downstream can get a different PIT token
-    data2.setTag(pitToken);
-    return m_forwarder.onOutgoingData(data2, egress);
+    if (pitToken != nullptr) {
+      Data data2 = data; // make a copy so each downstream can get a different PIT token
+      data2.setTag(pitToken);
+      return m_forwarder.onOutgoingData(data2, egress);
+    }
   }
   return m_forwarder.onOutgoingData(data, egress);
 }
@@ -297,23 +329,22 @@ Strategy::lookupFib(const pit::Entry& pitEntry) const
 
   const fib::Entry* fibEntry = nullptr;
   for (const auto& delegation : fh) {
-    fibEntry = &fib.findLongestPrefixMatch(delegation.name);
+    fibEntry = &fib.findLongestPrefixMatch(delegation);
     if (fibEntry->hasNextHops()) {
-      if (fibEntry->getPrefix().size() == 0) {
+      if (fibEntry->getPrefix().empty()) {
         // in consumer region, return the default route
         NFD_LOG_TRACE("lookupFib inConsumerRegion found=" << fibEntry->getPrefix());
       }
       else {
         // in default-free zone, use the first delegation that finds a FIB entry
-        NFD_LOG_TRACE("lookupFib delegation=" << delegation.name << " found=" << fibEntry->getPrefix());
+        NFD_LOG_TRACE("lookupFib delegation=" << delegation << " found=" << fibEntry->getPrefix());
       }
       return *fibEntry;
     }
-    BOOST_ASSERT(fibEntry->getPrefix().size() == 0); // only ndn:/ FIB entry can have zero nexthop
+    BOOST_ASSERT(fibEntry->getPrefix().empty()); // only ndn:/ FIB entry can have zero nexthop
   }
-  BOOST_ASSERT(fibEntry != nullptr && fibEntry->getPrefix().size() == 0);
+  BOOST_ASSERT(fibEntry != nullptr && fibEntry->getPrefix().empty());
   return *fibEntry; // only occurs if no delegation finds a FIB nexthop
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,22 +27,16 @@
 #define NFD_TESTS_TOOLS_NFDC_EXECUTE_COMMAND_FIXTURE_HPP
 
 #include "mock-nfd-mgmt-fixture.hpp"
-#include "nfdc/available-commands.hpp"
+#include "nfdc/command-parser.hpp"
 
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
-#if BOOST_VERSION >= 105900
 #include <boost/test/tools/output_test_stream.hpp>
-#else
-#include <boost/test/output_test_stream.hpp>
-#endif
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
-namespace tests {
+namespace nfd::tools::nfdc::tests {
 
-/** \brief fixture to test command execution
+/**
+ * \brief Fixture to test command execution.
  */
 class ExecuteCommandFixture : public MockNfdMgmtFixture
 {
@@ -55,15 +49,11 @@ protected:
 
     CommandParser parser;
     registerCommands(parser);
+    auto [noun, verb, ca, exec] = parser.parse(args, ParseMode::ONE_SHOT);
 
-    std::string noun, verb;
-    CommandArguments ca;
-    ExecuteCommand execute;
-    std::tie(noun, verb, ca, execute) = parser.parse(args, ParseMode::ONE_SHOT);
-
-    Controller controller(face, m_keyChain);
+    ndn::nfd::Controller controller(face, m_keyChain);
     ExecuteContext ctx{noun, verb, ca, 0, out, err, face, m_keyChain, controller};
-    execute(ctx);
+    exec(ctx);
     exitCode = ctx.exitCode;
   }
 
@@ -73,9 +63,6 @@ protected:
   int exitCode = -1;
 };
 
-} // namespace tests
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc::tests
 
 #endif // NFD_TESTS_TOOLS_NFDC_EXECUTE_COMMAND_FIXTURE_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,13 +33,9 @@
 
 #include <cstring>
 
-namespace nfd {
-namespace cs {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
-
-#define CHECK_CS_FIND(expected) find([&] (uint32_t found) { BOOST_CHECK_EQUAL(expected, found); });
+#define CHECK_CS_FIND(expected) find([&] (uint32_t found) { BOOST_CHECK_EQUAL(expected, found); })
 
 class CsFixture : public GlobalIoTimeFixture
 {
@@ -49,7 +45,7 @@ protected:
          bool isUnsolicited = false)
   {
     auto data = makeData(name);
-    data->setContent(reinterpret_cast<const uint8_t*>(&id), sizeof(id));
+    data->setContent(ndn::make_span(reinterpret_cast<const uint8_t*>(&id), sizeof(id)));
 
     if (modifyData != nullptr) {
       modifyData(*data);
@@ -92,12 +88,12 @@ protected:
   size_t
   erase(const Name& prefix, size_t limit)
   {
-    optional<size_t> nErased;
-    cs.erase(prefix, limit, [&] (size_t nErased1) { nErased = nErased1; });
+    std::optional<size_t> nErased;
+    cs.erase(prefix, limit, [&] (size_t n) { nErased = n; });
 
     // current Cs::erase implementation is synchronous
     // if callback was not invoked, bad_optional_access would occur
-    return *nErased;
+    return nErased.value();
   }
 
 protected:
@@ -105,8 +101,6 @@ protected:
   shared_ptr<Interest> interest;
 };
 
-} // namespace tests
-} // namespace cs
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_TABLE_CS_FIXTURE_HPP

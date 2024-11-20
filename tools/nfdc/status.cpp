@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,9 +34,7 @@
 
 #include <ndn-cxx/security/validator-null.hpp>
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+namespace nfd::tools::nfdc {
 
 void
 reportStatus(ExecuteContext& ctx, const StatusReportOptions& options)
@@ -94,7 +92,7 @@ reportStatus(ExecuteContext& ctx, const StatusReportOptions& options)
   }
 }
 
-/** \brief single-section status command
+/** \brief Single-section status command.
  */
 static void
 reportStatusSingleSection(ExecuteContext& ctx, bool StatusReportOptions::*wantSection)
@@ -104,7 +102,7 @@ reportStatusSingleSection(ExecuteContext& ctx, bool StatusReportOptions::*wantSe
   reportStatus(ctx, options);
 }
 
-/** \brief the 'status report' command
+/** \brief The 'status report' command.
  */
 static void
 reportStatusComprehensive(ExecuteContext& ctx)
@@ -154,6 +152,4 @@ registerStatusCommands(CommandParser& parser)
   parser.addAlias("cs", "info", "");
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,17 +32,6 @@ namespace nfd {
 
 NFD_LOG_INIT(DeadNonceList);
 
-const time::nanoseconds DeadNonceList::DEFAULT_LIFETIME;
-const time::nanoseconds DeadNonceList::MIN_LIFETIME;
-const size_t DeadNonceList::INITIAL_CAPACITY;
-const size_t DeadNonceList::MIN_CAPACITY;
-const size_t DeadNonceList::MAX_CAPACITY;
-const DeadNonceList::Entry DeadNonceList::MARK;
-const size_t DeadNonceList::EXPECTED_MARK_COUNT;
-const double DeadNonceList::CAPACITY_UP;
-const double DeadNonceList::CAPACITY_DOWN;
-const size_t DeadNonceList::EVICT_LIMIT;
-
 DeadNonceList::DeadNonceList(time::nanoseconds lifetime)
   : m_lifetime(lifetime)
   , m_capacity(INITIAL_CAPACITY)
@@ -61,15 +50,15 @@ DeadNonceList::DeadNonceList(time::nanoseconds lifetime)
   m_adjustCapacityEvent = getScheduler().schedule(m_adjustCapacityInterval, [this] { adjustCapacity(); });
 
   BOOST_ASSERT_MSG(DEFAULT_LIFETIME >= MIN_LIFETIME, "DEFAULT_LIFETIME is too small");
-  static_assert(INITIAL_CAPACITY >= MIN_CAPACITY, "INITIAL_CAPACITY is too small");
-  static_assert(INITIAL_CAPACITY <= MAX_CAPACITY, "INITIAL_CAPACITY is too large");
+  static_assert(INITIAL_CAPACITY >= MIN_CAPACITY);
+  static_assert(INITIAL_CAPACITY <= MAX_CAPACITY);
   BOOST_ASSERT_MSG(static_cast<size_t>(MIN_CAPACITY * CAPACITY_UP) > MIN_CAPACITY,
                    "CAPACITY_UP must be able to increase from MIN_CAPACITY");
   BOOST_ASSERT_MSG(static_cast<size_t>(MAX_CAPACITY * CAPACITY_DOWN) < MAX_CAPACITY,
                    "CAPACITY_DOWN must be able to decrease from MAX_CAPACITY");
   BOOST_ASSERT_MSG(CAPACITY_UP > 1.0, "CAPACITY_UP must adjust up");
   BOOST_ASSERT_MSG(CAPACITY_DOWN < 1.0, "CAPACITY_DOWN must adjust down");
-  static_assert(EVICT_LIMIT >= 1, "EVICT_LIMIT must be at least 1");
+  static_assert(EVICT_LIMIT >= 1);
 }
 
 size_t
@@ -109,7 +98,7 @@ DeadNonceList::makeEntry(const Name& name, Interest::Nonce nonce)
   const auto& nameWire = name.wireEncode();
   uint32_t n;
   std::memcpy(&n, nonce.data(), sizeof(n));
-  return CityHash64WithSeed(reinterpret_cast<const char*>(nameWire.wire()), nameWire.size(), n);
+  return CityHash64WithSeed(reinterpret_cast<const char*>(nameWire.data()), nameWire.size(), n);
 }
 
 size_t

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -46,15 +46,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
-#include <limits>
-#include <map>
 #include <memory>
-#include <set>
+#include <optional>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -63,25 +59,18 @@
 #include <ndn-cxx/name.hpp>
 #include <ndn-cxx/encoding/block.hpp>
 #include <ndn-cxx/lp/nack.hpp>
-#include <ndn-cxx/net/face-uri.hpp>
 #include <ndn-cxx/util/backports.hpp>
 #include <ndn-cxx/util/exception.hpp>
-#include <ndn-cxx/util/optional.hpp>
-#include <ndn-cxx/util/scheduler.hpp>
 #include <ndn-cxx/util/signal.hpp>
+#include <ndn-cxx/util/span.hpp>
 #include <ndn-cxx/util/time.hpp>
 
-#include <boost/asio.hpp>
 #include <boost/assert.hpp>
 #include <boost/core/noncopyable.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/property_tree/ptree.hpp>
 
 namespace nfd {
 
 using std::size_t;
-
-using boost::noncopyable;
 
 using std::shared_ptr;
 using std::unique_ptr;
@@ -89,23 +78,17 @@ using std::weak_ptr;
 using std::make_shared;
 using std::make_unique;
 
-using std::static_pointer_cast;
-using std::dynamic_pointer_cast;
-using std::const_pointer_cast;
-
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
-using ndn::optional;
-using ndn::nullopt;
-using ndn::to_string;
+using boost::noncopyable;
 
+using ndn::span;
 using ndn::Block;
 using ndn::Data;
-using ndn::FaceUri;
 using ndn::Interest;
 using ndn::Name;
 using ndn::PartialName;
-using ndn::Scheduler;
 
 // Not using a namespace alias (namespace tlv = ndn::tlv), because
 // it doesn't allow NFD to add other members to the namespace
@@ -115,11 +98,11 @@ using namespace ndn::tlv;
 
 namespace lp = ndn::lp;
 namespace name = ndn::name;
-namespace scheduler = ndn::scheduler;
-namespace signal = ndn::util::signal;
+namespace signal = ndn::signal;
 namespace time = ndn::time;
+
+using namespace ndn::block_literals;
 using namespace ndn::time_literals;
-using ndn::operator""_block;
 
 } // namespace nfd
 

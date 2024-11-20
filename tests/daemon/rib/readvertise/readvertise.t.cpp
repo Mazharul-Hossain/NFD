@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,16 +34,14 @@
 #include <boost/range/adaptor/transformed.hpp>
 #include <boost/range/algorithm/copy.hpp>
 
-namespace nfd {
-namespace rib {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::rib;
 
 class DummyReadvertisePolicy : public ReadvertisePolicy
 {
 public:
-  optional<ReadvertiseAction>
+  std::optional<ReadvertiseAction>
   handleNewRoute(const RibRouteRef&) const override
   {
     return this->decision;
@@ -56,7 +54,7 @@ public:
   }
 
 public:
-  optional<ReadvertiseAction> decision;
+  std::optional<ReadvertiseAction> decision;
 };
 
 class DummyReadvertiseDestination : public ReadvertiseDestination
@@ -159,11 +157,11 @@ protected:
   unique_ptr<Readvertise> readvertise;
 
 private:
-  ndn::util::DummyClientFace m_face;
+  ndn::DummyClientFace m_face;
   Rib m_rib;
 };
 
-BOOST_AUTO_TEST_SUITE(Readvertise)
+BOOST_AUTO_TEST_SUITE(Rib)
 BOOST_FIXTURE_TEST_SUITE(TestReadvertise, ReadvertiseFixture)
 
 BOOST_AUTO_TEST_CASE(AddRemoveRoute)
@@ -196,7 +194,7 @@ BOOST_AUTO_TEST_CASE(AddRemoveRoute)
 
 BOOST_AUTO_TEST_CASE(NoAdvertise)
 {
-  policy->decision = nullopt;
+  policy->decision = std::nullopt;
 
   this->insertRoute("/A/1", 1, ndn::nfd::ROUTE_ORIGIN_CLIENT);
   this->insertRoute("/A/2", 1, ndn::nfd::ROUTE_ORIGIN_CLIENT);
@@ -220,11 +218,10 @@ BOOST_AUTO_TEST_CASE(DestinationAvailability)
   this->setDestinationAvailability(true);
   std::set<Name> advertisedPrefixes;
   boost::copy(destination->advertiseHistory | boost::adaptors::transformed(
-                [] (const DummyReadvertiseDestination::HistoryEntry& he) { return he.prefix; }),
+                [] (const auto& he) { return he.prefix; }),
               std::inserter(advertisedPrefixes, advertisedPrefixes.end()));
-  std::set<Name> expectedPrefixes{"/A", "/B"};
-  BOOST_CHECK_EQUAL_COLLECTIONS(advertisedPrefixes.begin(), advertisedPrefixes.end(),
-                                expectedPrefixes.begin(), expectedPrefixes.end());
+  const std::set<Name> expectedPrefixes{"/A", "/B"};
+  BOOST_TEST(advertisedPrefixes == expectedPrefixes, boost::test_tools::per_element());
   destination->advertiseHistory.clear();
 
   this->setDestinationAvailability(false);
@@ -299,8 +296,6 @@ BOOST_AUTO_TEST_CASE(ChangeDuringRetry)
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestReadvertise
-BOOST_AUTO_TEST_SUITE_END() // Readvertise
+BOOST_AUTO_TEST_SUITE_END() // Rib
 
-} // namespace tests
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::tests

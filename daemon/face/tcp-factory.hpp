@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,12 +27,13 @@
 #define NFD_DAEMON_FACE_TCP_FACTORY_HPP
 
 #include "protocol-factory.hpp"
+#include "network-predicate.hpp"
 #include "tcp-channel.hpp"
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-/** \brief Protocol factory for TCP over IPv4 and IPv6
+/**
+ * \brief Protocol factory for TCP over IPv4 and IPv6.
  */
 class TcpFactory final : public ProtocolFactory
 {
@@ -43,22 +44,20 @@ public:
   using ProtocolFactory::ProtocolFactory;
 
   /**
-   * \brief Create TCP-based channel using tcp::Endpoint
+   * \brief Create TCP-based channel using tcp::Endpoint.
    *
-   * tcp::Endpoint is really an alias for boost::asio::ip::tcp::endpoint.
+   * tcp::Endpoint is an alias for boost::asio::ip::tcp::endpoint.
    *
    * If this method is called twice with the same endpoint, only one channel
    * will be created. The second call will just return the existing channel.
    *
-   * \return always a valid pointer to a TcpChannel object, an exception
+   * \return Always a valid pointer to a TcpChannel object, an exception
    *         is thrown if it cannot be created.
    */
   shared_ptr<TcpChannel>
   createChannel(const tcp::Endpoint& localEndpoint);
 
 private:
-  /** \brief process face_system.tcp config section
-   */
   void
   doProcessConfig(OptionalConfigSection configSection,
                   FaceSystem::ConfigContext& context) final;
@@ -83,7 +82,6 @@ NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   IpAddressPredicate m_local;
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_TCP_FACTORY_HPP

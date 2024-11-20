@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,13 +28,13 @@
 
 #include "stage.hpp"
 
+#include "core/common.hpp"
+
 #include <ndn-cxx/face.hpp>
 #include <ndn-cxx/mgmt/nfd/controller.hpp>
 #include <ndn-cxx/security/key-chain.hpp>
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
 struct Options
 {
@@ -52,15 +52,16 @@ public:
   void
   initialize(const Options& options);
 
-  /** \brief run HUB discovery procedure once
+  /**
+   * \brief Run the HUB discovery procedure once.
    */
   void
   runOnce();
 
-  boost::asio::io_service&
-  getIoService()
+  boost::asio::io_context&
+  getIoContext() const noexcept
   {
-    return m_face.getIoService();
+    return m_face.getIoContext();
   }
 
 private:
@@ -74,11 +75,12 @@ private:
   registerPrefixes(uint64_t hubFaceId, size_t index = 0);
 
 public:
-  /** \brief signal when procedure completes
+  /**
+   * \brief Signal emitted when the procedure completes.
    *
-   *  Argument indicates whether the procedure succeeds (true) or fails (false).
+   * Argument indicates whether the procedure succeeds (true) or fails (false).
    */
-  util::Signal<Procedure, bool> onComplete;
+  signal::Signal<Procedure, bool> onComplete;
 
 NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE:
   std::vector<unique_ptr<Stage>> m_stages;
@@ -89,8 +91,6 @@ private:
   nfd::Controller m_controller;
 };
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig
 
 #endif // NFD_TOOLS_NDN_AUTOCONFIG_PROCEDURE_HPP

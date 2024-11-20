@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,8 +29,7 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestDeadNonceList, GlobalIoFixture)
@@ -126,7 +125,7 @@ protected:
     addNonceEvent = getScheduler().schedule(ADD_INTERVAL, [this] { addNonce(); });
   }
 
-  /** \brief advance clocks by LIFETIME*t
+  /** \brief Advance clocks by `LIFETIME*t`.
    */
   void
   advanceClocksByLifetime(double t)
@@ -142,11 +141,8 @@ protected:
   Name name = "/N";
   uint32_t lastNonce = 0;
   size_t addNonceBatch = 0;
-  scheduler::ScopedEventId addNonceEvent;
+  ndn::scheduler::ScopedEventId addNonceEvent;
 };
-
-const time::nanoseconds PeriodicalInsertionFixture::LIFETIME;
-const time::nanoseconds PeriodicalInsertionFixture::ADD_INTERVAL;
 
 BOOST_FIXTURE_TEST_CASE(Lifetime, PeriodicalInsertionFixture)
 {
@@ -196,5 +192,4 @@ BOOST_FIXTURE_TEST_CASE(CapacityUp, PeriodicalInsertionFixture)
 BOOST_AUTO_TEST_SUITE_END() // TestDeadNonceList
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

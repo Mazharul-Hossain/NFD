@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,12 +24,15 @@
  */
 
 #include "lp-reliability.hpp"
+#include "common/global.hpp"
 #include "generic-link-service.hpp"
 #include "transport.hpp"
-#include "common/global.hpp"
 
-namespace nfd {
-namespace face {
+#include <ndn-cxx/lp/fields.hpp>
+
+#include <set>
+
+namespace nfd::face {
 
 NFD_LOG_INIT(LpReliability);
 
@@ -55,12 +58,6 @@ LpReliability::setOptions(const Options& options)
   m_options = options;
 }
 
-const GenericLinkService*
-LpReliability::getLinkService() const
-{
-  return m_linkService;
-}
-
 void
 LpReliability::handleOutgoing(std::vector<lp::Packet>& frags, lp::Packet&& pkt, bool isInterest)
 {
@@ -80,10 +77,7 @@ LpReliability::handleOutgoing(std::vector<lp::Packet>& frags, lp::Packet&& pkt, 
     lp::Sequence txSeq = assignTxSequence(frag);
 
     // Store LpPacket for future retransmissions
-    unackedFragsIt = m_unackedFrags.emplace_hint(unackedFragsIt,
-                                                 std::piecewise_construct,
-                                                 std::forward_as_tuple(txSeq),
-                                                 std::forward_as_tuple(frag));
+    unackedFragsIt = m_unackedFrags.try_emplace(unackedFragsIt, txSeq, frag);
     unackedFragsIt->second.sendTime = sendTime;
     auto rto = m_rttEst.getEstimatedRto();
     lp::Sequence seq = frag.get<lp::SequenceField>();
@@ -174,12 +168,12 @@ LpReliability::processIncomingPacket(const lp::Packet& pkt)
       // Check for recent received Sequences to remove
       auto now = time::steady_clock::now();
       auto rto = m_rttEst.getEstimatedRto();
-      while (m_recentRecvSeqsQueue.size() > 0 &&
+      while (!m_recentRecvSeqsQueue.empty() &&
              now > m_recentRecvSeqs[m_recentRecvSeqsQueue.front()] + rto) {
         m_recentRecvSeqs.erase(m_recentRecvSeqsQueue.front());
         m_recentRecvSeqsQueue.pop();
       }
-      m_recentRecvSeqs.emplace(pktSequence, now);
+      m_recentRecvSeqs.try_emplace(pktSequence, now);
       m_recentRecvSeqsQueue.push(pktSequence);
     }
 
@@ -226,7 +220,7 @@ LpReliability::assignTxSequence(lp::Packet& frag)
 {
   lp::Sequence txSeq = ++m_lastTxSeqNo;
   frag.set<lp::TxSequenceField>(txSeq);
-  if (m_unackedFrags.size() > 0 && m_lastTxSeqNo == m_firstUnackedFrag->first) {
+  if (!m_unackedFrags.empty() && m_lastTxSeqNo == m_firstUnackedFrag->first) {
     NDN_THROW(std::length_error("TxSequence range exceeded"));
   }
   return m_lastTxSeqNo;
@@ -310,10 +304,8 @@ LpReliability::onLpPacketLost(lp::Sequence txSeq, bool isTimeout)
     // Notify strategy of dropped Interest (if any)
     if (netPkt->isInterest) {
       BOOST_ASSERT(netPkt->pkt.has<lp::FragmentField>());
-      ndn::Buffer::const_iterator fragBegin, fragEnd;
-      std::tie(fragBegin, fragEnd) = netPkt->pkt.get<lp::FragmentField>();
-      Block frag(&*fragBegin, std::distance(fragBegin, fragEnd));
-      onDroppedInterest(Interest(frag));
+      auto frag = netPkt->pkt.get<lp::FragmentField>();
+      onDroppedInterest(Interest(Block({frag.first, frag.second})));
     }
 
     // Delete this LpPacket from m_unackedFrags
@@ -326,13 +318,10 @@ LpReliability::onLpPacketLost(lp::Sequence txSeq, bool isTimeout)
     netPkt->didRetx = true;
 
     // Move fragment to new TxSequence mapping
-    auto newTxFragIt = m_unackedFrags.emplace_hint(
-      m_firstUnackedFrag != m_unackedFrags.end() && m_firstUnackedFrag->first > newTxSeq
-        ? m_firstUnackedFrag
-        : m_unackedFrags.end(),
-      std::piecewise_construct,
-      std::forward_as_tuple(newTxSeq),
-      std::forward_as_tuple(txFrag.pkt));
+    auto hint = m_firstUnackedFrag != m_unackedFrags.end() && m_firstUnackedFrag->first > newTxSeq
+                ? m_firstUnackedFrag
+                : m_unackedFrags.end();
+    auto newTxFragIt = m_unackedFrags.try_emplace(hint, newTxSeq, txFrag.pkt);
     auto& newTxFrag = newTxFragIt->second;
     newTxFrag.retxCount = txFrag.retxCount + 1;
     newTxFrag.netPkt = netPkt;
@@ -407,21 +396,6 @@ LpReliability::deleteUnackedFrag(UnackedFrags::iterator fragIt)
   }
 }
 
-LpReliability::UnackedFrag::UnackedFrag(lp::Packet pkt)
-  : pkt(std::move(pkt))
-  , sendTime(time::steady_clock::now())
-  , retxCount(0)
-  , nGreaterSeqAcks(0)
-{
-}
-
-LpReliability::NetPkt::NetPkt(lp::Packet&& pkt, bool isInterest)
-  : pkt(std::move(pkt))
-  , isInterest(isInterest)
-  , didRetx(false)
-{
-}
-
 std::ostream&
 operator<<(std::ostream& os, const FaceLogHelper<LpReliability>& flh)
 {
@@ -434,5 +408,4 @@ operator<<(std::ostream& os, const FaceLogHelper<LpReliability>& flh)
   return os;
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

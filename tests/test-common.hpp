@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -44,16 +44,15 @@
 #define SKIP_IF_NOT_SUPERUSER()
 #endif // NFD_HAVE_PRIVILEGE_DROP_AND_ELEVATE
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 /**
  * \brief Create an Interest
  */
 shared_ptr<Interest>
 makeInterest(const Name& name, bool canBePrefix = false,
-             optional<time::milliseconds> lifetime = nullopt,
-             optional<Interest::Nonce> nonce = nullopt);
+             std::optional<time::milliseconds> lifetime = std::nullopt,
+             std::optional<Interest::Nonce> nonce = std::nullopt);
 
 /**
  * \brief Create a Data with a null (i.e., empty) signature
@@ -87,7 +86,7 @@ makeNack(Interest interest, lp::NackReason reason);
 
 /**
  * \brief Replace a name component in a packet
- * \param[inout] pkt the packet
+ * \param[in,out] pkt the packet
  * \param index the index of the name component to replace
  * \param args arguments to name::Component constructor
  */
@@ -105,17 +104,7 @@ setNameComponent(Packet& pkt, ssize_t index, Args&& ...args)
  */
 ndn::PrefixAnnouncement
 makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
-              optional<ndn::security::ValidityPeriod> validity = nullopt);
-
-/**
- * \brief Create a prefix announcement without signing
- * \param announcedName announced name
- * \param expiration expiration period
- * \param validityFromNow validity period, relative from now
- */
-ndn::PrefixAnnouncement
-makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
-              std::pair<time::seconds, time::seconds> validityFromNow);
+              std::optional<ndn::security::ValidityPeriod> validity = std::nullopt);
 
 /**
  * \brief Sign a prefix announcement
@@ -123,9 +112,8 @@ makePrefixAnn(const Name& announcedName, time::milliseconds expiration,
 ndn::PrefixAnnouncement
 signPrefixAnn(ndn::PrefixAnnouncement&& pa, ndn::KeyChain& keyChain,
               const ndn::security::SigningInfo& si = ndn::security::SigningInfo(),
-              optional<uint64_t> version = nullopt);
+              std::optional<uint64_t> version = std::nullopt);
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_TEST_COMMON_HPP

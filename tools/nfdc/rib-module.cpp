@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,14 +24,13 @@
  */
 
 #include "rib-module.hpp"
-#include "canonizer.hpp"
 #include "face-module.hpp"
-#include "find-face.hpp"
+#include "face-helpers.hpp"
 #include "format-helpers.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
+
+namespace nfd::tools::nfdc {
 
 void
 RibModule::registerCommands(CommandParser& parser)
@@ -99,7 +98,7 @@ RibModule::list(ExecuteContext& ctx)
     nexthops = findFace.getFaceIds();
   }
 
-  listRoutesImpl(ctx, [&] (const RibEntry& entry, const Route& route) {
+  listRoutesImpl(ctx, [&] (const RibEntry&, const Route& route) {
     return (nexthops.empty() || nexthops.count(route.getFaceId()) > 0) &&
            (!origin || route.getOrigin() == *origin);
   });
@@ -110,7 +109,7 @@ RibModule::show(ExecuteContext& ctx)
 {
   auto prefix = ctx.args.get<Name>("prefix");
 
-  listRoutesImpl(ctx, [&] (const RibEntry& entry, const Route& route) {
+  listRoutesImpl(ctx, [&] (const RibEntry& entry, const Route&) {
     return entry.getName() == prefix;
   });
 }
@@ -119,7 +118,7 @@ void
 RibModule::listRoutesImpl(ExecuteContext& ctx, const RoutePredicate& filter)
 {
   ctx.controller.fetch<ndn::nfd::RibDataset>(
-    [&] (const std::vector<RibEntry>& dataset) {
+    [&] (const auto& dataset) {
       bool hasRoute = false;
       for (const RibEntry& entry : dataset) {
         for (const Route& route : entry.getRoutes()) {
@@ -189,7 +188,7 @@ RibModule::add(ExecuteContext& ctx)
   };
 
   auto handleFaceNotFound = [&] {
-    const FaceUri* faceUri = ndn::any_cast<FaceUri>(&nexthop);
+    const FaceUri* faceUri = std::any_cast<FaceUri>(&nexthop);
     if (faceUri == nullptr) {
       ctx.err << "Face not found\n";
       return;
@@ -203,9 +202,7 @@ RibModule::add(ExecuteContext& ctx)
       return;
     }
 
-    optional<FaceUri> canonized;
-    std::string error;
-    std::tie(canonized, error) = canonize(ctx, *faceUri);
+    auto [canonized, error] = canonize(ctx, *faceUri);
     if (!canonized) {
       // Canonization failed
       auto canonizationError = canonizeErrorHelper(*faceUri, error);
@@ -305,13 +302,13 @@ RibModule::remove(ExecuteContext& ctx)
 }
 
 void
-RibModule::fetchStatus(Controller& controller,
+RibModule::fetchStatus(ndn::nfd::Controller& controller,
                        const std::function<void()>& onSuccess,
-                       const Controller::DatasetFailCallback& onFailure,
+                       const ndn::nfd::DatasetFailureCallback& onFailure,
                        const CommandOptions& options)
 {
   controller.fetch<ndn::nfd::RibDataset>(
-    [this, onSuccess] (const std::vector<RibEntry>& result) {
+    [this, onSuccess] (const auto& result) {
       m_status = result;
       onSuccess();
     },
@@ -412,6 +409,4 @@ RibModule::formatRouteText(std::ostream& os, const RibEntry& entry, const Route&
   }
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

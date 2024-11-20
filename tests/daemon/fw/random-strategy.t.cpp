@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,17 +24,16 @@
  */
 
 #include "fw/random-strategy.hpp"
-#include "common/global.hpp"
 
 #include "tests/test-common.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
 #include "strategy-tester.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
+#include <unordered_map>
 
-using RandomStrategyTester = StrategyTester<RandomStrategy>;
+namespace nfd::tests {
+
+using RandomStrategyTester = StrategyTester<fw::RandomStrategy>;
 NFD_REGISTER_STRATEGY(RandomStrategyTester);
 
 BOOST_AUTO_TEST_SUITE(Fw)
@@ -82,7 +81,7 @@ BOOST_AUTO_TEST_CASE(Forward)
     auto pitEntry = pit.insert(*interest).first;
 
     pitEntry->insertOrUpdateInRecord(*face1, *interest);
-    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1, 0), pitEntry);
+    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
   }
 
   // Map outFaceId -> SentInterests
@@ -100,6 +99,4 @@ BOOST_AUTO_TEST_CASE(Forward)
 BOOST_AUTO_TEST_SUITE_END() // TestRandomStrategy
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

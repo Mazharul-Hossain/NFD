@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,15 +31,12 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "dummy-transport.hpp"
 
-#include <ndn-cxx/lp/empty-value.hpp>
-#include <ndn-cxx/lp/prefix-announcement-header.hpp>
+#include <ndn-cxx/lp/fields.hpp>
 #include <ndn-cxx/lp/tags.hpp>
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
 
@@ -193,7 +190,7 @@ BOOST_AUTO_TEST_CASE(SendNack)
   options.allowLocalFields = false;
   initialize(options);
 
-  auto nack1 = makeNack(*makeInterest("/localhost/test", false, nullopt, 323),
+  auto nack1 = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 323),
                         lp::NackReason::NO_ROUTE);
   face->sendNack(nack1);
 
@@ -229,8 +226,7 @@ BOOST_AUTO_TEST_CASE(ReceiveInterest)
 
   auto interest1 = makeInterest("/23Rd9hEiR");
   lp::Packet lpPacket;
-  lpPacket.set<lp::FragmentField>(std::make_pair(
-    interest1->wireEncode().begin(), interest1->wireEncode().end()));
+  lpPacket.set<lp::FragmentField>({interest1->wireEncode().begin(), interest1->wireEncode().end()});
   lpPacket.set<lp::SequenceField>(0); // force LpPacket encoding
 
   transport->receivePacket(lpPacket.wireEncode());
@@ -264,8 +260,7 @@ BOOST_AUTO_TEST_CASE(ReceiveData)
 
   auto data1 = makeData("/12345689");
   lp::Packet lpPacket;
-  lpPacket.set<lp::FragmentField>(std::make_pair(
-    data1->wireEncode().begin(), data1->wireEncode().end()));
+  lpPacket.set<lp::FragmentField>({data1->wireEncode().begin(), data1->wireEncode().end()});
   lpPacket.set<lp::SequenceField>(0); // force LpPacket encoding
 
   transport->receivePacket(lpPacket.wireEncode());
@@ -282,11 +277,11 @@ BOOST_AUTO_TEST_CASE(ReceiveNack)
   options.allowLocalFields = false;
   initialize(options);
 
-  lp::Nack nack1 = makeNack(*makeInterest("/localhost/test", false, nullopt, 323),
-                            lp::NackReason::NO_ROUTE);
+  auto nack1 = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 323),
+                        lp::NackReason::NO_ROUTE);
   lp::Packet lpPacket;
-  lpPacket.set<lp::FragmentField>(std::make_pair(
-    nack1.getInterest().wireEncode().begin(), nack1.getInterest().wireEncode().end()));
+  lpPacket.set<lp::FragmentField>({nack1.getInterest().wireEncode().begin(),
+                                   nack1.getInterest().wireEncode().end()});
   lpPacket.set<lp::NackField>(nack1.getHeader());
 
   transport->receivePacket(lpPacket.wireEncode());
@@ -430,12 +425,9 @@ BOOST_AUTO_TEST_CASE(ReassembleFragments)
 
   // fragment the packet
   LpFragmenter fragmenter({});
-  size_t mtu = 100;
-  bool isOk = false;
-  std::vector<lp::Packet> frags;
-  std::tie(isOk, frags) = fragmenter.fragmentPacket(packet, mtu);
+  auto [isOk, frags] = fragmenter.fragmentPacket(packet, 100);
   BOOST_REQUIRE(isOk);
-  BOOST_CHECK_GT(frags.size(), 1);
+  BOOST_TEST(frags.size() > 1);
 
   // receive the fragments
   for (ssize_t fragIndex = frags.size() - 1; fragIndex >= 0; --fragIndex) {
@@ -538,7 +530,7 @@ BOOST_AUTO_TEST_CASE(SendNack)
   options.reliabilityOptions.isEnabled = true;
   initialize(options);
 
-  auto nack1 = makeNack(*makeInterest("/localhost/test", false, nullopt, 323),
+  auto nack1 = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 323),
                         lp::NackReason::NO_ROUTE);
   face->sendNack(nack1);
 
@@ -559,7 +551,6 @@ BOOST_AUTO_TEST_CASE(DropDuplicatePacket)
   initialize(options);
 
   Interest interest("/test/prefix");
-  interest.setCanBePrefix(false);
   lp::Packet pkt1;
   pkt1.add<lp::FragmentField>({interest.wireEncode().begin(), interest.wireEncode().end()});
   pkt1.add<lp::SequenceField>(7);
@@ -588,7 +579,7 @@ BOOST_AUTO_TEST_CASE(NoCongestion)
   options.allowCongestionMarking = true;
   options.baseCongestionMarkingInterval = 100_ms;
   initialize(options, MTU_UNLIMITED, 65536);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
 
@@ -602,7 +593,7 @@ BOOST_AUTO_TEST_CASE(NoCongestion)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 1);
   lp::Packet pkt1(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(pkt1.count<lp::CongestionMarkField>(), 0);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
 
@@ -612,7 +603,7 @@ BOOST_AUTO_TEST_CASE(NoCongestion)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 2);
   lp::Packet pkt2(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(pkt2.count<lp::CongestionMarkField>(), 0);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
 }
@@ -623,7 +614,7 @@ BOOST_AUTO_TEST_CASE(CongestionCoDel)
   options.allowCongestionMarking = true;
   options.baseCongestionMarkingInterval = 100_ms;
   initialize(options, MTU_UNLIMITED, 65536);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
 
@@ -635,7 +626,7 @@ BOOST_AUTO_TEST_CASE(CongestionCoDel)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 1);
   lp::Packet pkt0(transport->sentPackets.back());
   BOOST_REQUIRE_EQUAL(pkt0.count<lp::CongestionMarkField>(), 0);
-  time::steady_clock::TimePoint nextMarkTime = time::steady_clock::now() + 100_ms;
+  auto nextMarkTime = time::steady_clock::now() + 100_ms;
   BOOST_CHECK_EQUAL(service->m_nextMarkTime, nextMarkTime);
 
   time::nanoseconds markingInterval(
@@ -755,7 +746,7 @@ BOOST_AUTO_TEST_CASE(CongestionCoDel)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 9);
   lp::Packet pkt8(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(pkt8.count<lp::CongestionMarkField>(), 0);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 4);
 
@@ -831,7 +822,7 @@ BOOST_AUTO_TEST_CASE(CongestionCoDel)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 14);
   lp::Packet pkt13(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(pkt13.count<lp::CongestionMarkField>(), 0);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 6);
 
@@ -855,7 +846,7 @@ BOOST_AUTO_TEST_CASE(CongestionCoDel)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 16);
   lp::Packet pkt15(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(pkt15.count<lp::CongestionMarkField>(), 0);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 6);
 }
@@ -866,7 +857,7 @@ BOOST_AUTO_TEST_CASE(DefaultThreshold)
   options.allowCongestionMarking = true;
   options.baseCongestionMarkingInterval = 100_ms;
   initialize(options, MTU_UNLIMITED, QUEUE_UNSUPPORTED);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
 
@@ -881,7 +872,7 @@ BOOST_AUTO_TEST_CASE(DefaultThreshold)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 1);
   lp::Packet pkt1(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(pkt1.count<lp::CongestionMarkField>(), 0);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
 
@@ -891,7 +882,7 @@ BOOST_AUTO_TEST_CASE(DefaultThreshold)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 2);
   lp::Packet pkt2(transport->sentPackets.back());
   BOOST_CHECK_EQUAL(pkt2.count<lp::CongestionMarkField>(), 0);
-  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(service->m_nextMarkTime, time::steady_clock::time_point::max());
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
 
@@ -901,7 +892,7 @@ BOOST_AUTO_TEST_CASE(DefaultThreshold)
   BOOST_REQUIRE_EQUAL(transport->sentPackets.size(), 3);
   lp::Packet pkt3(transport->sentPackets.back());
   BOOST_REQUIRE_EQUAL(pkt3.count<lp::CongestionMarkField>(), 0);
-  time::steady_clock::TimePoint nextMarkTime = time::steady_clock::now() + 100_ms;
+  auto nextMarkTime = time::steady_clock::now() + 100_ms;
   BOOST_CHECK_EQUAL(service->m_nextMarkTime, nextMarkTime);
   BOOST_CHECK_EQUAL(service->m_nMarkedSinceInMarkingState, 0);
   BOOST_CHECK_EQUAL(service->getCounters().nCongestionMarked, 0);
@@ -971,11 +962,11 @@ BOOST_AUTO_TEST_CASE(ReceiveNextHopFaceIdDropNack)
   options.allowLocalFields = true;
   initialize(options);
 
-  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, nullopt, 123),
-                           lp::NackReason::NO_ROUTE);
+  auto nack = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 123),
+                       lp::NackReason::NO_ROUTE);
   lp::Packet packet;
-  packet.set<lp::FragmentField>(std::make_pair(
-    nack.getInterest().wireEncode().begin(), nack.getInterest().wireEncode().end()));
+  packet.set<lp::FragmentField>({nack.getInterest().wireEncode().begin(),
+                                 nack.getInterest().wireEncode().end()});
   packet.set<lp::NackField>(nack.getHeader());
   packet.set<lp::NextHopFaceIdField>(1000);
 
@@ -1031,7 +1022,7 @@ BOOST_AUTO_TEST_CASE(ReceiveCachePolicyDropNack)
   options.allowLocalFields = true;
   initialize(options);
 
-  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, nullopt, 123),
+  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 123),
                            lp::NackReason::NO_ROUTE);
   lp::Packet packet(nack.getInterest().wireEncode());
   packet.set<lp::NackField>(nack.getHeader());
@@ -1123,7 +1114,7 @@ BOOST_AUTO_TEST_CASE(ReceiveIncomingFaceIdIgnoreNack)
   options.allowLocalFields = true;
   initialize(options);
 
-  lp::Nack nack = makeNack(*makeInterest("/TPAhdiHz", false, nullopt, 278),
+  lp::Nack nack = makeNack(*makeInterest("/TPAhdiHz", false, std::nullopt, 278),
                            lp::NackReason::CONGESTION);
   lp::Packet packet(nack.getInterest().wireEncode());
   packet.set<lp::NackField>(nack.getHeader());
@@ -1164,7 +1155,7 @@ BOOST_AUTO_TEST_CASE(SendCongestionMarkData)
 
 BOOST_AUTO_TEST_CASE(SendCongestionMarkNack)
 {
-  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, nullopt, 123),
+  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 123),
                            lp::NackReason::NO_ROUTE);
   nack.setTag(make_shared<lp::CongestionMarkTag>(std::numeric_limits<uint64_t>::max()));
 
@@ -1206,11 +1197,11 @@ BOOST_AUTO_TEST_CASE(ReceiveCongestionMarkData)
 
 BOOST_AUTO_TEST_CASE(ReceiveCongestionMarkNack)
 {
-  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, nullopt, 123),
-                           lp::NackReason::NO_ROUTE);
+  auto nack = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 123),
+                       lp::NackReason::NO_ROUTE);
   lp::Packet packet;
-  packet.set<lp::FragmentField>(std::make_pair(
-    nack.getInterest().wireEncode().begin(), nack.getInterest().wireEncode().end()));
+  packet.set<lp::FragmentField>({nack.getInterest().wireEncode().begin(),
+                                 nack.getInterest().wireEncode().end()});
   packet.set<lp::NackField>(nack.getHeader());
   packet.set<lp::CongestionMarkField>(1);
 
@@ -1311,11 +1302,11 @@ BOOST_AUTO_TEST_CASE(ReceiveNonDiscoveryDropNack)
   options.allowSelfLearning = true;
   initialize(options);
 
-  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, nullopt, 123),
-                           lp::NackReason::NO_ROUTE);
+  auto nack = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 123),
+                       lp::NackReason::NO_ROUTE);
   lp::Packet packet;
-  packet.set<lp::FragmentField>(std::make_pair(
-    nack.getInterest().wireEncode().begin(), nack.getInterest().wireEncode().end()));
+  packet.set<lp::FragmentField>({nack.getInterest().wireEncode().begin(),
+                                 nack.getInterest().wireEncode().end()});
   packet.set<lp::NackField>(nack.getHeader());
   packet.set<lp::NonDiscoveryField>(lp::EmptyValue{});
 
@@ -1419,11 +1410,11 @@ BOOST_AUTO_TEST_CASE(ReceivePrefixAnnouncementDropNack)
   options.allowSelfLearning = true;
   initialize(options);
 
-  lp::Nack nack = makeNack(*makeInterest("/localhost/test", false, nullopt, 123),
-                           lp::NackReason::NO_ROUTE);
+  auto nack = makeNack(*makeInterest("/localhost/test", false, std::nullopt, 123),
+                       lp::NackReason::NO_ROUTE);
   lp::Packet packet;
-  packet.set<lp::FragmentField>(std::make_pair(
-    nack.getInterest().wireEncode().begin(), nack.getInterest().wireEncode().end()));
+  packet.set<lp::FragmentField>({nack.getInterest().wireEncode().begin(),
+                                 nack.getInterest().wireEncode().end()});
   packet.set<lp::NackField>(nack.getHeader());
   auto pah = makePrefixAnnHeader("/local/ndn/prefix");
   packet.set<lp::PrefixAnnouncementField>(pah);
@@ -1476,6 +1467,4 @@ BOOST_AUTO_TEST_SUITE_END() // Malformed
 BOOST_AUTO_TEST_SUITE_END() // TestGenericLinkService
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

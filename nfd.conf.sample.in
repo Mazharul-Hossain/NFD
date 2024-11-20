@@ -101,10 +101,9 @@ face_system
   ; Unix stream faces and channels.
   unix
   {
-    ; The default transport is unix:///run/nfd.sock (on Linux) or unix:///var/run/nfd.sock (on
-    ; other platforms). This should match the "transport" field in client.conf for ndn-cxx. If you
-    ; wish to use TCP instead of Unix sockets with ndn-cxx, change "transport" to an appropriate
-    ; TCP FaceUri.
+    ; The default transport is 'unix:///run/nfd/nfd.sock' (on Linux) or 'unix:///var/run/nfd/nfd.sock' (on
+    ; other platforms). This should match the 'transport' field in client.conf for ndn-cxx. If you wish
+    ; to use TCP instead of Unix sockets with ndn-cxx, change 'transport' to an appropriate TCP FaceUri.
     path @UNIX_SOCKET_PATH@ ; Unix stream listener path
   }
 
@@ -303,12 +302,12 @@ authorizations
     ;      sudo mkdir -p @SYSCONFDIR@/ndn/keys
     ;      sudo mv default.ndncert @SYSCONFDIR@/ndn/keys/default.ndncert
     ;
-    ; The "certfile" field below specifies the default key directory for
+    ; The 'certfile' field below specifies the default key directory for
     ; your machine. You may move your newly created key to the location it
     ; specifies or path.
 
     ; certfile keys/default.ndncert ; NDN identity certificate file
-    certfile any ; "any" authorizes command interests signed under any certificate,
+    certfile any ; 'any' authorizes command interests signed under any certificate,
                  ; i.e., no actual validation.
     privileges ; set of privileges granted to this identity
     {
@@ -352,7 +351,7 @@ rib
   ;   ; trust-anchors, which are briefly defined in this file.  For more information refer to
   ;   ; validator configuration file format documentation:
   ;   ;
-  ;   ;    https://named-data.net/doc/ndn-cxx/current/tutorials/security-validator-config.html
+  ;   ;    https://docs.named-data.net/ndn-cxx/current/tutorials/security-validator-config.html
   ;   ;
   ;   ; A trust-anchor is a pre-trusted certificate.  This can be any certificate that is the
   ;   ; root of certification chain (e.g., NDN testbed root certificate) or an existing
@@ -374,13 +373,11 @@ rib
   ;   {
   ;     id "RIB Command Interest"
   ;     for interest
-  ;     ; match Commmand Interest name
-  ;     ; last three components are ControlParameters, timestamp, and random-value
-  ;     ; SignatureInfo and SignatureValue are stripped before passing to the filter
+  ;     ; match Commmand Interest name (either in v0.3 or v0.2 format)
   ;     filter
   ;     {
   ;       type name
-  ;       regex ^<localhop><nfd><rib>[<register><unregister>]<>{3}$
+  ;       regex ^<localhop><nfd><rib>[<register><unregister>]<>{1,3}$
   ;     }
   ;     checker
   ;     {

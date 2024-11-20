@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -32,11 +32,11 @@
 #include "strategy-tester.hpp"
 #include "topology-tester.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
+#include <boost/mp11/list.hpp>
 
-using MulticastStrategyTester = StrategyTester<MulticastStrategy>;
+namespace nfd::tests {
+
+using MulticastStrategyTester = StrategyTester<fw::MulticastStrategy>;
 NFD_REGISTER_STRATEGY(MulticastStrategyTester);
 
 class MulticastStrategyFixture : public GlobalIoTimeFixture
@@ -87,7 +87,7 @@ BOOST_AUTO_TEST_CASE(Bug5123)
   auto pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
 
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 1);
 
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE(Bug5123)
   pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face2, *interest);
 
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face2, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face2), pitEntry);
   // Since the interest is the same as the one sent out earlier, the PIT entry should not be
   // rejected, as any data coming back must be able to satisfy the original interest from face 1
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
@@ -117,7 +117,7 @@ BOOST_AUTO_TEST_CASE(Bug5123)
                nodeC = topo.addForwarder("C");
 
   for (TopologyNode node : {nodeA, nodeB, nodeC}) {
-    topo.setStrategy<MulticastStrategy>(node);
+    topo.setStrategy<fw::MulticastStrategy>(node);
   }
 
   shared_ptr<TopologyLink> linkAB = topo.addLink("AB", 10_ms,  {nodeA, nodeB}),
@@ -164,23 +164,24 @@ BOOST_AUTO_TEST_CASE(Forward2)
   auto pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face3, *interest);
 
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 2);
   BOOST_TEST(didSendInterestTo(*face1));
   BOOST_TEST(didSendInterestTo(*face2));
 
-  const auto TICK = time::duration_cast<time::nanoseconds>(MulticastStrategy::RETX_SUPPRESSION_INITIAL) / 10;
+  const auto TICK = time::duration_cast<time::nanoseconds>(
+                      fw::RetxSuppressionExponential::DEFAULT_INITIAL_INTERVAL) / 10;
 
   // downstream retransmits frequently, but the strategy should not send Interests
   // more often than DEFAULT_MIN_RETX_INTERVAL
-  scheduler::EventId retxFrom4Evt;
+  ndn::scheduler::EventId retxFrom4Evt;
   size_t nSentLast = strategy.sendInterestHistory.size();
   auto timeSentLast = time::steady_clock::now();
   std::function<void()> periodicalRetxFrom4; // let periodicalRetxFrom4 lambda capture itself
   periodicalRetxFrom4 = [&] {
     pitEntry->insertOrUpdateInRecord(*face3, *interest);
-    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3, 0), pitEntry);
+    strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
 
     size_t nSent = strategy.sendInterestHistory.size();
     if (nSent > nSentLast) {
@@ -195,7 +196,7 @@ BOOST_AUTO_TEST_CASE(Forward2)
     retxFrom4Evt = getScheduler().schedule(TICK * 5, periodicalRetxFrom4);
   };
   periodicalRetxFrom4();
-  this->advanceClocks(TICK, MulticastStrategy::RETX_SUPPRESSION_MAX * 16);
+  this->advanceClocks(TICK, fw::RetxSuppressionExponential::DEFAULT_MAX_INTERVAL * 16);
   retxFrom4Evt.cancel();
 }
 
@@ -208,14 +209,34 @@ BOOST_AUTO_TEST_CASE(LoopingInterest)
   auto pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
 
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1, 0), pitEntry);
-  BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
-  BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 0);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
+  BOOST_TEST(strategy.rejectPendingInterestHistory.size() == 0);
+  BOOST_TEST(strategy.sendInterestHistory.size() == 0);
+}
+
+BOOST_AUTO_TEST_CASE(DuplicateInterest)
+{
+  fib::Entry& fibEntry = *fib.insert(Name()).first;
+  fib.addOrUpdateNextHop(fibEntry, *face3, 0);
+
+  auto interest = makeInterest("ndn:/H0D6i5fc");
+
+  // first interest
+  forwarder.onIncomingInterest(*interest, FaceEndpoint(*face1));
+  BOOST_TEST(forwarder.getCounters().nInInterests == 1);
+  BOOST_TEST(strategy.sendInterestHistory.size() == 1);
+
+  // second interest (duplicate, should enter onInterestLoop)
+  forwarder.onIncomingInterest(*interest, FaceEndpoint(*face2));
+  BOOST_TEST(forwarder.getCounters().nInInterests == 2);
+  BOOST_TEST(strategy.sendInterestHistory.size() == 1);
+  BOOST_TEST(strategy.rejectPendingInterestHistory.size() == 0);
+  BOOST_TEST(strategy.sendNackHistory.size() == 0);
 }
 
 BOOST_AUTO_TEST_CASE(RetxSuppression)
 {
-  const auto suppressPeriod = MulticastStrategy::RETX_SUPPRESSION_INITIAL;
+  const auto suppressPeriod = fw::RetxSuppressionExponential::DEFAULT_INITIAL_INTERVAL;
   BOOST_ASSERT(suppressPeriod >= 8_ms);
 
   // Set up the FIB
@@ -228,7 +249,7 @@ BOOST_AUTO_TEST_CASE(RetxSuppression)
   auto interest = makeInterest("/t8ZiSOi3");
   auto pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
 
   // forwarded to faces 2 and 3
   BOOST_TEST(strategy.sendInterestHistory.size() == 2);
@@ -243,7 +264,7 @@ BOOST_AUTO_TEST_CASE(RetxSuppression)
   interest->refreshNonce();
   pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face2, *interest);
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face2, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face2), pitEntry);
 
   // forwarded only to face 1, suppressed on face 3
   BOOST_TEST(strategy.sendInterestHistory.size() == 1);
@@ -257,7 +278,7 @@ BOOST_AUTO_TEST_CASE(RetxSuppression)
   interest->refreshNonce();
   pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face3, *interest);
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
 
   // suppressed on face 1, forwarded on face 2 (and suppression window doubles)
   BOOST_TEST(strategy.sendInterestHistory.size() == 1);
@@ -271,7 +292,7 @@ BOOST_AUTO_TEST_CASE(RetxSuppression)
   interest->refreshNonce();
   pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face3, *interest);
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face3), pitEntry);
 
   // forwarded only to face 1, suppressed on face 2
   BOOST_TEST(strategy.sendInterestHistory.size() == 1);
@@ -285,7 +306,7 @@ BOOST_AUTO_TEST_CASE(RetxSuppression)
   interest->refreshNonce();
   pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
 
   // forwarded to faces 2 and 3
   BOOST_TEST(strategy.sendInterestHistory.size() == 2);
@@ -304,7 +325,7 @@ BOOST_AUTO_TEST_CASE(NewNextHop)
   auto pitEntry = pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*face1, *interest);
 
-  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1, 0), pitEntry);
+  strategy.afterReceiveInterest(*interest, FaceEndpoint(*face1), pitEntry);
   BOOST_CHECK_EQUAL(strategy.rejectPendingInterestHistory.size(), 0);
   BOOST_CHECK_EQUAL(strategy.sendInterestHistory.size(), 1);
 
@@ -471,7 +492,7 @@ protected:
   }
 };
 
-using Tests = boost::mpl::vector<
+using Tests = boost::mp11::mp_list<
   BasicNonLocal,
   NewFibLocal,
   InFaceLocal,
@@ -492,12 +513,12 @@ BOOST_FIXTURE_TEST_CASE_TEMPLATE(ForwardAsync, T, Tests, T)
   auto interest = makeInterest("ndn:/localhop/H0D6i5fc");
   auto pitEntry = this->pit.insert(*interest).first;
   pitEntry->insertOrUpdateInRecord(*this->inFace1, *interest);
-  this->strategy.afterReceiveInterest(*interest, FaceEndpoint(*this->inFace1, 0), pitEntry);
+  this->strategy.afterReceiveInterest(*interest, FaceEndpoint(*this->inFace1), pitEntry);
 
   if (this->inFace2 != nullptr) {
     auto interest2 = makeInterest("ndn:/localhop/H0D6i5fc");
     pitEntry->insertOrUpdateInRecord(*this->inFace2, *interest2);
-    this->strategy.afterReceiveInterest(*interest2, FaceEndpoint(*this->inFace2, 0), pitEntry);
+    this->strategy.afterReceiveInterest(*interest2, FaceEndpoint(*this->inFace2), pitEntry);
   }
 
   this->strategy.sendInterestHistory.clear();
@@ -509,6 +530,4 @@ BOOST_AUTO_TEST_SUITE_END() // LocalhopScope
 BOOST_AUTO_TEST_SUITE_END() // TestMulticastStrategy
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

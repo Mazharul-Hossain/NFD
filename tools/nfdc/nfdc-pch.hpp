@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,28 +23,18 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "face-counters.hpp"
+#ifndef NFD_TOOLS_NFDC_NFDC_PCH_HPP
+#define NFD_TOOLS_NFDC_NFDC_PCH_HPP
 
-namespace nfd {
-namespace face {
+#include "core/common.hpp"
 
-FaceCounters::FaceCounters(const LinkService::Counters& linkServiceCounters,
-                           const Transport::Counters& transportCounters)
-  : nInInterests(linkServiceCounters.nInInterests)
-  , nOutInterests(linkServiceCounters.nOutInterests)
-  , nInterestsExceededRetx(linkServiceCounters.nInterestsExceededRetx)
-  , nInData(linkServiceCounters.nInData)
-  , nOutData(linkServiceCounters.nOutData)
-  , nInNacks(linkServiceCounters.nInNacks)
-  , nOutNacks(linkServiceCounters.nOutNacks)
-  , nInPackets(transportCounters.nInPackets)
-  , nOutPackets(transportCounters.nOutPackets)
-  , nInBytes(transportCounters.nInBytes)
-  , nOutBytes(transportCounters.nOutBytes)
-  , m_linkServiceCounters(linkServiceCounters)
-  , m_transportCounters(transportCounters)
-{
-}
+#include <functional>
+#include <map>
+#include <set>
 
-} // namespace face
-} // namespace nfd
+#include <ndn-cxx/mgmt/nfd/controller.hpp>
+#include <ndn-cxx/net/face-uri.hpp>
+#include <ndn-cxx/security/validator-null.hpp>
+#include <ndn-cxx/util/logger.hpp>
+
+#endif // NFD_TOOLS_NFDC_NFDC_PCH_HPP

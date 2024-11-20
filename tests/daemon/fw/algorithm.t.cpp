@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,11 +29,9 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/face/dummy-face.hpp"
 
-namespace nfd {
-namespace fw {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::fw;
 
 BOOST_AUTO_TEST_SUITE(Fw)
 BOOST_FIXTURE_TEST_SUITE(TestAlgorithm, GlobalIoFixture)
@@ -155,7 +153,7 @@ BOOST_FIXTURE_TEST_CASE(HasPendingOutRecords, GlobalIoTimeFixture)
   auto face2 = make_shared<DummyFace>();
   auto face3 = make_shared<DummyFace>();
 
-  auto interest = makeInterest("/totzXG0d", false, nullopt, 29321);
+  auto interest = makeInterest("/totzXG0d", false, std::nullopt, 29321);
   pit::Entry entry(*interest);
   BOOST_CHECK_EQUAL(hasPendingOutRecords(entry), false);
 
@@ -168,7 +166,7 @@ BOOST_FIXTURE_TEST_CASE(HasPendingOutRecords, GlobalIoTimeFixture)
   // Interest-Nack
   entry.insertOrUpdateOutRecord(*face2, *interest);
   BOOST_CHECK_EQUAL(hasPendingOutRecords(entry), true);
-  pit::OutRecordCollection::iterator outR = entry.getOutRecord(*face2);
+  auto outR = entry.findOutRecord(*face2);
   BOOST_REQUIRE(outR != entry.out_end());
   lp::Nack nack = makeNack(*interest, lp::NackReason::DUPLICATE);
   bool isNackAccepted = outR->setIncomingNack(nack); // Nack arrival
@@ -205,6 +203,4 @@ BOOST_FIXTURE_TEST_CASE(GetLastOutgoing, GlobalIoTimeFixture)
 BOOST_AUTO_TEST_SUITE_END() // TestPitAlgorithm
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

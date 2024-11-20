@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,8 +29,11 @@
 #include "tests/daemon/global-io-fixture.hpp"
 #include "tests/daemon/fw/dummy-strategy.hpp"
 
-namespace nfd {
-namespace tests {
+#include <ndn-cxx/util/concepts.hpp>
+
+namespace nfd::tests {
+
+NDN_CXX_ASSERT_FORWARD_ITERATOR(StrategyChoice::const_iterator);
 
 class StrategyChoiceFixture : public GlobalIoFixture
 {
@@ -41,21 +44,19 @@ protected:
     DummyStrategy::registerAs(strategyNameQ);
   }
 
-  /** \brief insert StrategyChoice entry at \p prefix for \p instanceName
+  /** \brief Insert StrategyChoice entry at \p prefix for \p instanceName.
    *  \return constructed instance name
    */
   Name
   insertAndGet(const Name& prefix, const Name& instanceName)
   {
     BOOST_REQUIRE(sc.insert(prefix, instanceName));
-    bool isFound;
-    Name foundName;
-    std::tie(isFound, foundName) = sc.get(prefix);
+    auto [isFound, foundName] = sc.get(prefix);
     BOOST_REQUIRE(isFound);
     return foundName;
   }
 
-  /** \brief determine whether the effective strategy type at \p prefix is \p S
+  /** \brief Determine whether the effective strategy type at \p prefix is \p S.
    *  \tparam S expected strategy type
    */
   template<typename S>
@@ -337,5 +338,4 @@ BOOST_AUTO_TEST_CASE(ClearStrategyInfo)
 BOOST_AUTO_TEST_SUITE_END() // TestStrategyChoice
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -36,6 +36,8 @@
 #include <ndn-cxx/mgmt/nfd/face-query-filter.hpp>
 #include <ndn-cxx/mgmt/nfd/face-status.hpp>
 
+#include <limits>
+
 namespace nfd {
 
 NFD_LOG_INIT(FaceManager);
@@ -48,16 +50,19 @@ FaceManager::FaceManager(FaceSystem& faceSystem,
 {
   // register handlers for ControlCommand
   registerCommandHandler<ndn::nfd::FaceCreateCommand>("create",
-    std::bind(&FaceManager::createFace, this, _4, _5));
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { createFace(std::forward<decltype(args)>(args)...); });
   registerCommandHandler<ndn::nfd::FaceUpdateCommand>("update",
-    std::bind(&FaceManager::updateFace, this, _3, _4, _5));
+    [this] (auto&&, auto&&, auto&&... args) { updateFace(std::forward<decltype(args)>(args)...); });
   registerCommandHandler<ndn::nfd::FaceDestroyCommand>("destroy",
-    std::bind(&FaceManager::destroyFace, this, _4, _5));
+    [this] (auto&&, auto&&, auto&&, auto&&... args) { destroyFace(std::forward<decltype(args)>(args)...); });
 
   // register handlers for StatusDataset
-  registerStatusDatasetHandler("list", std::bind(&FaceManager::listFaces, this, _3));
-  registerStatusDatasetHandler("channels", std::bind(&FaceManager::listChannels, this, _3));
-  registerStatusDatasetHandler("query", std::bind(&FaceManager::queryFaces, this, _2, _3));
+  registerStatusDatasetHandler("list",
+    [this] (auto&&, auto&&, auto&&... args) { listFaces(std::forward<decltype(args)>(args)...); });
+  registerStatusDatasetHandler("channels",
+    [this] (auto&&, auto&&, auto&&... args) { listChannels(std::forward<decltype(args)>(args)...); });
+  registerStatusDatasetHandler("query",
+    [this] (auto&&, auto&&... args) { queryFaces(std::forward<decltype(args)>(args)...); });
 
   // register notification stream
   m_postNotification = registerNotificationStream("events");
@@ -87,7 +92,7 @@ FaceManager::createFace(const ControlParameters& parameters,
     return;
   }
 
-  optional<FaceUri> localUri;
+  std::optional<FaceUri> localUri;
   if (parameters.hasLocalUri()) {
     localUri = FaceUri{};
 
@@ -260,7 +265,7 @@ FaceManager::updateFace(const Interest& interest,
                         const ndn::mgmt::CommandContinuation& done)
 {
   FaceId faceId = parameters.getFaceId();
-  if (faceId == 0) { // Self-update
+  if (faceId == face::INVALID_FACEID) { // Self-update
     auto incomingFaceIdTag = interest.getTag<lp::IncomingFaceIdTag>();
     if (incomingFaceIdTag == nullptr) {
       NFD_LOG_TRACE("unable to determine face for self-update");

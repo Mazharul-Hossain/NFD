@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,19 +31,21 @@
 
 #include <ndn-cxx/util/rtt-estimator.hpp>
 
-namespace nfd {
-namespace fw {
+#include <unordered_map>
 
-/** \brief Access Router strategy
+namespace nfd::fw {
+
+/**
+ * \brief A forwarding strategy for "access" routers.
  *
- *  This strategy is designed for the last hop on the NDN testbed,
- *  where each nexthop connects to a laptop, links are lossy, and FIB is mostly correct.
+ * This strategy is designed for the last hop on the NDN testbed,
+ * where each nexthop connects to a laptop, links are lossy, and FIB is mostly correct.
  *
- *  1. Multicast the first Interest to all nexthops.
- *  2. When Data comes back, remember last working nexthop of the prefix;
- *     the granularity of this knowledge is the parent of Data Name.
- *  3. Forward subsequent Interests to the last working nexthop.
- *     If it doesn't respond, multicast again.
+ * 1. Multicast the first Interest to all nexthops.
+ * 2. When Data comes back, remember the last working nexthop of the prefix;
+ *    the granularity of this knowledge is the parent of Data Name.
+ * 3. Forward subsequent Interests to the last working nexthop.
+ *    If there is no reply, multicast again (step 1).
  */
 class AccessStrategy : public Strategy
 {
@@ -66,7 +68,7 @@ public: // triggers
 private: // StrategyInfo
   using RttEstimator = ndn::util::RttEstimator;
 
-  /** \brief StrategyInfo on PIT entry
+  /** \brief StrategyInfo on PIT entry.
    */
   class PitInfo final : public StrategyInfo
   {
@@ -78,10 +80,10 @@ private: // StrategyInfo
     }
 
   public:
-    scheduler::ScopedEventId rtoTimer;
+    ndn::scheduler::ScopedEventId rtoTimer;
   };
 
-  /** \brief StrategyInfo in measurements table
+  /** \brief StrategyInfo in measurements table.
    */
   class MtInfo final : public StrategyInfo
   {
@@ -103,18 +105,18 @@ private: // StrategyInfo
     RttEstimator rtt;
   };
 
-  /** \brief find per-prefix measurements for Interest
+  /** \brief Find per-prefix measurements for Interest.
    */
   std::tuple<Name, MtInfo*>
   findPrefixMeasurements(const pit::Entry& pitEntry);
 
-  /** \brief get or create pre-prefix measurements for incoming Data
+  /** \brief Get or create pre-prefix measurements for incoming Data.
    *  \note This function creates MtInfo but doesn't update it.
    */
   MtInfo*
   addPrefixMeasurements(const Data& data);
 
-  /** \brief global per-face StrategyInfo
+  /** \brief Global per-face StrategyInfo.
    *  \todo Currently stored inside AccessStrategy instance; should be moved
    *        to measurements table or somewhere else.
    */
@@ -140,7 +142,7 @@ private: // forwarding procedures
   afterReceiveRetxInterest(const Interest& interest, const FaceEndpoint& ingress,
                            const shared_ptr<pit::Entry>& pitEntry);
 
-  /** \brief send to last working nexthop
+  /** \brief Send to last working nexthop.
    *  \return whether an Interest is sent
    */
   bool
@@ -152,7 +154,7 @@ private: // forwarding procedures
   afterRtoTimeout(const weak_ptr<pit::Entry>& pitWeak,
                   FaceId inFaceId, FaceId firstOutFaceId);
 
-  /** \brief multicast to all nexthops
+  /** \brief Multicast to all nexthops.
    *  \param exceptFace don't forward to this face; also, \p inFace is always excluded
    *  \return number of Interests that were sent
    */
@@ -171,7 +173,6 @@ private:
   signal::ScopedConnection m_removeFaceConn;
 };
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
 #endif // NFD_DAEMON_FW_ACCESS_STRATEGY_HPP

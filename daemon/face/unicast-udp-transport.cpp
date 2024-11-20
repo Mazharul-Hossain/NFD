@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,12 +34,13 @@
 #include <sys/socket.h> // for setsockopt()
 #endif
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
-NFD_LOG_MEMBER_INIT_SPECIALIZED((DatagramTransport<boost::asio::ip::udp, Unicast>), UnicastUdpTransport);
+namespace ip = boost::asio::ip;
 
-UnicastUdpTransport::UnicastUdpTransport(protocol::socket&& socket,
+NFD_LOG_MEMBER_INIT_SPECIALIZED((DatagramTransport<ip::udp, Unicast>), UnicastUdpTransport);
+
+UnicastUdpTransport::UnicastUdpTransport(ip::udp::socket&& socket,
                                          ndn::nfd::FacePersistency persistency,
                                          time::nanoseconds idleTimeout)
   : DatagramTransport(std::move(socket))
@@ -95,7 +96,7 @@ UnicastUdpTransport::afterChangePersistency(ndn::nfd::FacePersistency oldPersist
   }
   else {
     m_closeIfIdleEvent.cancel();
-    setExpirationTime(time::steady_clock::TimePoint::max());
+    setExpirationTime(time::steady_clock::time_point::max());
   }
 }
 
@@ -115,5 +116,4 @@ UnicastUdpTransport::scheduleClosureWhenIdle()
   setExpirationTime(time::steady_clock::now() + m_idleTimeout);
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

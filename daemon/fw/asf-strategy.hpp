@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,23 +26,24 @@
 #ifndef NFD_DAEMON_FW_ASF_STRATEGY_HPP
 #define NFD_DAEMON_FW_ASF_STRATEGY_HPP
 
+#include "strategy.hpp"
 #include "asf-measurements.hpp"
 #include "asf-probing-module.hpp"
-#include "fw/retx-suppression-exponential.hpp"
-#include "fw/strategy.hpp"
+#include "process-nack-traits.hpp"
+#include "retx-suppression-exponential.hpp"
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 namespace asf {
 
-/** \brief Adaptive SRTT-based Forwarding Strategy
+/**
+ * \brief Adaptive SRTT-based forwarding strategy.
  *
- *  \see Vince Lehman, Ashlesh Gawande, Rodrigo Aldecoa, Dmitri Krioukov, Beichuan Zhang,
- *       Lixia Zhang, and Lan Wang, "An Experimental Investigation of Hyperbolic Routing
- *       with a Smart Forwarding Plane in NDN", NDN Technical Report NDN-0042, 2016.
- *       https://named-data.net/publications/techreports/ndn-0042-1-asf/
+ * \see Vince Lehman, Ashlesh Gawande, Rodrigo Aldecoa, Dmitri Krioukov, Beichuan Zhang,
+ *      Lixia Zhang, and Lan Wang, "An Experimental Investigation of Hyperbolic Routing
+ *      with a Smart Forwarding Plane in NDN", NDN Technical Report NDN-0042, 2016.
+ *      https://named-data.net/publications/techreports/ndn-0042-1-asf/
  */
-class AsfStrategy : public Strategy
+class AsfStrategy : public Strategy, public ProcessNackTraits<AsfStrategy>
 {
 public:
   explicit
@@ -65,9 +66,6 @@ public: // triggers
                    const shared_ptr<pit::Entry>& pitEntry) override;
 
 private:
-  void
-  processParams(const PartialName& parsed);
-
   pit::OutRecord*
   forwardInterest(const Interest& interest, Face& outFace, const fib::Entry& fibEntry,
                   const shared_ptr<pit::Entry>& pitEntry);
@@ -87,21 +85,26 @@ private:
   void
   sendNoRouteNack(Face& face, const shared_ptr<pit::Entry>& pitEntry);
 
-private:
-  AsfMeasurements m_measurements;
-  ProbingModule m_probing;
-  RetxSuppressionExponential m_retxSuppression;
-  size_t m_nMaxSilentTimeouts = 3;
+NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+  struct FaceStatsForwardingCompare
+  {
+    bool
+    operator()(const FaceStats& lhs, const FaceStats& rhs) const noexcept;
+  };
+  using FaceStatsForwardingSet = std::set<FaceStats, FaceStatsForwardingCompare>;
 
-  static const time::milliseconds RETX_SUPPRESSION_INITIAL;
-  static const time::milliseconds RETX_SUPPRESSION_MAX;
+  AsfMeasurements m_measurements{getMeasurements()};
+  std::unique_ptr<RetxSuppressionExponential> m_retxSuppression;
+  ProbingModule m_probing{m_measurements};
+  size_t m_nMaxTimeouts = 3;
+
+  friend ProcessNackTraits<AsfStrategy>;
 };
 
 } // namespace asf
 
 using asf::AsfStrategy;
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
 #endif // NFD_DAEMON_FW_ASF_STRATEGY_HPP

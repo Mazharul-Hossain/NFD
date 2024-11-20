@@ -1,41 +1,57 @@
 #!/usr/bin/env bash
-set -ex
+set -eo pipefail
 
-if has OSX $NODE_LABELS; then
-    FORMULAE=(boost openssl pkg-config)
-    if has OSX-10.13 $NODE_LABELS || has OSX-10.14 $NODE_LABELS; then
-        FORMULAE+=(python)
+APT_PKGS=(
+    dpkg-dev
+    g++
+    libboost-chrono-dev
+    libboost-date-time-dev
+    libboost-dev
+    libboost-filesystem-dev
+    libboost-log-dev
+    libboost-program-options-dev
+    libboost-stacktrace-dev
+    libboost-test-dev
+    libboost-thread-dev
+    libpcap-dev
+    libsqlite3-dev
+    libssl-dev
+    libsystemd-dev
+    pkg-config
+    python3
+)
+FORMULAE=(boost openssl pkg-config)
+PIP_PKGS=()
+case $JOB_NAME in
+    *code-coverage)
+        APT_PKGS+=(lcov python3-pip)
+        PIP_PKGS+=('gcovr~=5.2')
+        ;;
+    *Docs)
+        APT_PKGS+=(doxygen graphviz python3-pip)
+        FORMULAE+=(doxygen graphviz)
+        PIP_PKGS+=(sphinx sphinxcontrib-doxylink)
+        ;;
+esac
+
+set -x
+
+if [[ $ID == macos ]]; then
+    export HOMEBREW_NO_ENV_HINTS=1
+    if [[ -n $GITHUB_ACTIONS ]]; then
+        export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
     fi
-
-    if [[ -n $TRAVIS ]]; then
-        # Travis images come with a large number of pre-installed
-        # brew packages, don't waste time upgrading all of them
-        brew list --versions "${FORMULAE[@]}" || brew update
-        for FORMULA in "${FORMULAE[@]}"; do
-            brew list --versions "$FORMULA" || brew install "$FORMULA"
-        done
-        # Ensure /usr/local/opt/openssl exists
-        brew reinstall openssl
-    else
-        brew update
-        brew upgrade
-        brew install "${FORMULAE[@]}"
-        brew cleanup
-    fi
-
-elif has Ubuntu $NODE_LABELS; then
-    sudo apt-get -qq update
-    sudo apt-get -qy install build-essential pkg-config python3-minimal \
-                             libboost-all-dev libssl-dev libsqlite3-dev \
-                             libpcap-dev libsystemd-dev
-
-    if [[ $JOB_NAME == *"code-coverage" ]]; then
-        sudo apt-get -qy install gcovr lcov
-    fi
-
-elif has CentOS-8 $NODE_LABELS; then
-    sudo dnf config-manager --enable powertools
-    sudo dnf -y install gcc-c++ libasan pkgconf-pkg-config python3 \
+    brew update
+    brew install --formula "${FORMULAE[@]}"
+elif [[ $ID_LIKE == *debian* ]]; then
+    sudo apt-get update -qq
+    sudo apt-get install -qy --no-install-recommends "${APT_PKGS[@]}"
+elif [[ $ID_LIKE == *fedora* ]]; then
+    sudo dnf install -y gcc-c++ libasan lld pkgconf-pkg-config python3 \
                         boost-devel openssl-devel sqlite-devel \
                         libpcap-devel systemd-devel
+fi
+
+if (( ${#PIP_PKGS[@]} )); then
+    pip3 install --user --upgrade --upgrade-strategy=eager "${PIP_PKGS[@]}"
 fi

@@ -1,1 +1,0 @@
-release-notes/release-notes-0.7.1.rst

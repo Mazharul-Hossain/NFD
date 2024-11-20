@@ -1,6 +1,6 @@
 # -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 """
-Copyright (c) 2014-2021,  Regents of the University of California,
+Copyright (c) 2014-2024,  Regents of the University of California,
                           Arizona Board of Regents,
                           Colorado State University,
                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,27 +23,21 @@ You should have received a copy of the GNU General Public License along with
 NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
+import subprocess
 from waflib import Context, Logs, Utils
-import os, subprocess
-import sys
-import re
-from waflib import Utils, Logs, Errors
-from waflib.Configure import conf
-from waflib.TaskGen import feature, after_method
 
-VERSION = '0.7.1'
+VERSION = '24.07'
 APPNAME = 'nfd'
-BUGREPORT = 'https://redmine.named-data.net/projects/nfd'
-URL = 'https://named-data.net/doc/NFD/'
 GIT_TAG_PREFIX = 'NFD-'
 
 
 def options(opt):
     opt.load(['compiler_cxx', 'gnu_dirs'])
-    opt.load(['default-compiler-flags',
-              'coverage', 'pch', 'sanitizers', 'boost',
+    opt.load(['default-compiler-flags', 'pch',
+              'coverage', 'sanitizers', 'boost',
               'dependency-checker', 'unix-socket', 'websocket',
-              'doxygen', 'sphinx_build'],
+              'doxygen', 'sphinx'],
              tooldir=['.waf-tools'])
 
     optgrp = opt.add_option_group('NFD Options')
@@ -94,19 +88,25 @@ int main()
 
 def configure(conf):
     conf.load(['compiler_cxx', 'gnu_dirs',
-               'default-compiler-flags', 'boost',
-               'pch', 'dependency-checker', 'websocket',
-               'doxygen', 'sphinx_build'])
+               'default-compiler-flags', 'pch',
+               'boost', 'dependency-checker', 'websocket',
+               'doxygen', 'sphinx'])
 
     conf.env.WITH_TESTS = conf.options.with_tests
     conf.env.WITH_OTHER_TESTS = conf.options.with_other_tests
     conf.env.WITH_BOOST_PYTHON = conf.options.with_boost_python
 
-    conf.find_program('bash', var='BASH')
-    conf.find_program('dot', var='DOT', mandatory=False)
+    conf.find_program('bash')
+    conf.find_program('dot', mandatory=False)
 
-    conf.check_cfg(package='libndn-cxx', args=['--cflags', '--libs'], uselib_store='NDN_CXX',
-                   pkg_config_path=os.environ.get('PKG_CONFIG_PATH', '%s/pkgconfig' % conf.env.LIBDIR))
+    # Prefer pkgconf if it's installed, because it gives more correct results
+    # on Fedora/CentOS/RHEL/etc. See https://bugzilla.redhat.com/show_bug.cgi?id=1953348
+    # Store the result in env.PKGCONFIG, which is the variable used inside check_cfg()
+    conf.find_program(['pkgconf', 'pkg-config'], var='PKGCONFIG')
+
+    pkg_config_path = os.environ.get('PKG_CONFIG_PATH', f'{conf.env.LIBDIR}/pkgconfig')
+    conf.check_cfg(package='libndn-cxx', args=['libndn-cxx >= 0.9.0', '--cflags', '--libs'],
+                   uselib_store='NDN_CXX', pkg_config_path=pkg_config_path)
 
     if not conf.options.without_systemd:
         conf.check_cfg(package='libsystemd', args=['--cflags', '--libs'],
@@ -120,19 +120,14 @@ def configure(conf):
 
     conf.check_cxx(header_name='valgrind/valgrind.h', define_name='HAVE_VALGRIND', mandatory=False)
 
-    boost_libs = ['system', 'program_options', 'filesystem']
-    if conf.env.WITH_TESTS or conf.env.WITH_OTHER_TESTS:
-        boost_libs.append('unit_test_framework')
-
-    conf.check_boost(lib=boost_libs, mt=True)
-    if conf.env.BOOST_VERSION_NUMBER < 105800:
-        conf.fatal('The minimum supported version of Boost is 1.65.1.\n'
+    conf.check_boost(lib='filesystem program_options', mt=True)
+    if conf.env.BOOST_VERSION_NUMBER < 107100:
+        conf.fatal('The minimum supported version of Boost is 1.71.0.\n'
                    'Please upgrade your distribution or manually install a newer version of Boost.\n'
                    'For more information, see https://redmine.named-data.net/projects/nfd/wiki/Boost')
-    elif conf.env.BOOST_VERSION_NUMBER < 106501:
-        Logs.warn('WARNING: Using a version of Boost older than 1.65.1 is not officially supported and may not work.\n'
-                  'If you encounter any problems, please upgrade your distribution or manually install a newer version of Boost.\n'
-                  'For more information, see https://redmine.named-data.net/projects/nfd/wiki/Boost')
+
+    if conf.env.WITH_TESTS or conf.env.WITH_OTHER_TESTS:
+        conf.check_boost(lib='unit_test_framework', mt=True, uselib_store='BOOST_TESTS')
 
     if conf.env.WITH_BOOST_PYTHON:
         # boost_libs.append('python')
@@ -175,7 +170,7 @@ def configure(conf):
 
     conf.define_cond('WITH_TESTS', conf.env.WITH_TESTS)
     conf.define_cond('WITH_OTHER_TESTS', conf.env.WITH_OTHER_TESTS)
-    conf.define('DEFAULT_CONFIG_FILE', '%s/ndn/nfd.conf' % conf.env.SYSCONFDIR)
+    conf.define('DEFAULT_CONFIG_FILE', f'{conf.env.SYSCONFDIR}/ndn/nfd.conf')
     # The config header will contain all defines that were added using conf.define()
     # or conf.define_cond().  Everything that was added directly to conf.env.DEFINES
     # will not appear in the config header, but will instead be passed directly to the
@@ -196,12 +191,10 @@ def build(bld):
 
     bld.objects(
         target='core-objects',
-        features='pch',
-        source=bld.path.find_node('core').ant_glob('*.cpp') + ['core/version.cpp'],
-        use='version.cpp version.hpp NDN_CXX BOOST LIBRT',
+        source=bld.path.find_dir('core').ant_glob('*.cpp') + ['core/version.cpp'],
+        use='version.cpp version.hpp BOOST NDN_CXX LIBRT',
         includes='.',
-        export_includes='.',
-        headers='core/common.hpp')
+        export_includes='.')
 
     nfd_objects = bld.objects(
         target='daemon-objects',
@@ -212,6 +205,8 @@ def build(bld):
                                        'daemon/face/websocket*.cpp',
                                        'daemon/fw/ifs-rl*.cpp',
                                        'daemon/main.cpp']),
+        features='pch',
+        headers='daemon/nfd-pch.hpp',
         use='core-objects',
         includes='daemon',
         export_includes='daemon')
@@ -251,17 +246,17 @@ def build(bld):
                 source='daemon/main.cpp',
                 use='daemon-objects SYSTEMD daemon-objects-ifs')
 
-    bld.recurse('tools')
     bld.recurse('tests')
+    bld.recurse('tools')
 
+    # Install sample configs
     bld(features='subst',
         source='nfd.conf.sample.in',
         target='nfd.conf.sample',
         install_path='${SYSCONFDIR}/ndn',
         IF_HAVE_LIBPCAP='' if bld.env.HAVE_LIBPCAP else '; ',
         IF_HAVE_WEBSOCKET='' if bld.env.HAVE_WEBSOCKET else '; ',
-        UNIX_SOCKET_PATH='/run/nfd.sock' if Utils.unversioned_sys_platform() == 'linux' else '/var/run/nfd.sock')
-
+        UNIX_SOCKET_PATH='/run/nfd/nfd.sock' if Utils.unversioned_sys_platform() == 'linux' else '/var/run/nfd/nfd.sock')
     bld.install_files('${SYSCONFDIR}/ndn', 'autoconfig.conf.sample')
 
     if bld.env.HAVE_SYSTEMD:
@@ -292,17 +287,19 @@ def build(bld):
 def versionhpp(bld):
     version(bld)
 
+    vmajor = int(VERSION_SPLIT[0])
+    vminor = int(VERSION_SPLIT[1]) if len(VERSION_SPLIT) >= 2 else 0
+    vpatch = int(VERSION_SPLIT[2]) if len(VERSION_SPLIT) >= 3 else 0
+
     bld(features='subst',
         name='version.hpp',
         source='core/version.hpp.in',
         target='core/version.hpp',
         install_path=None,
-        VERSION=int(VERSION_SPLIT[0]) * 1000000 +
-                int(VERSION_SPLIT[1]) * 1000 +
-                int(VERSION_SPLIT[2]),
-        VERSION_MAJOR=VERSION_SPLIT[0],
-        VERSION_MINOR=VERSION_SPLIT[1],
-        VERSION_PATCH=VERSION_SPLIT[2])
+        VERSION=vmajor * 1000000 + vminor * 1000 + vpatch,
+        VERSION_MAJOR=str(vmajor),
+        VERSION_MINOR=str(vminor),
+        VERSION_PATCH=str(vpatch))
 
 
 def docs(bld):
@@ -357,48 +354,50 @@ def version(ctx):
     Context.g_module.VERSION_SPLIT = VERSION_BASE.split('.')
 
     # first, try to get a version string from git
-    gotVersionFromGit = False
+    version_from_git = ''
     try:
-        cmd = ['git', 'describe', '--always', '--match', '%s*' % GIT_TAG_PREFIX]
-        out = subprocess.check_output(cmd, universal_newlines=True).strip()
-        if out:
-            gotVersionFromGit = True
-            if out.startswith(GIT_TAG_PREFIX):
-                Context.g_module.VERSION = out.lstrip(GIT_TAG_PREFIX)
+        cmd = ['git', 'describe', '--abbrev=8', '--always', '--match', f'{GIT_TAG_PREFIX}*']
+        version_from_git = subprocess.run(cmd, capture_output=True, check=True, text=True).stdout.strip()
+        if version_from_git:
+            if GIT_TAG_PREFIX and version_from_git.startswith(GIT_TAG_PREFIX):
+                Context.g_module.VERSION = version_from_git[len(GIT_TAG_PREFIX):]
+            elif not GIT_TAG_PREFIX and ('.' in version_from_git or '-' in version_from_git):
+                Context.g_module.VERSION = version_from_git
             else:
-                # no tags matched
-                Context.g_module.VERSION = '%s-commit-%s' % (VERSION_BASE, out)
-    except (OSError, subprocess.CalledProcessError):
+                # no tags matched (or we are in a shallow clone)
+                Context.g_module.VERSION = f'{VERSION_BASE}+git.{version_from_git}'
+    except (OSError, subprocess.SubprocessError):
         pass
 
-    versionFile = ctx.path.find_node('VERSION.info')
-    if not gotVersionFromGit and versionFile is not None:
+    # fallback to the VERSION.info file, if it exists and is not empty
+    version_from_file = ''
+    version_file = ctx.path.find_node('VERSION.info')
+    if version_file is not None:
         try:
-            Context.g_module.VERSION = versionFile.read()
-            return
-        except EnvironmentError:
-            pass
+            version_from_file = version_file.read().strip()
+        except OSError as e:
+            Logs.warn(f'{e.filename} exists but is not readable ({e.strerror})')
+    if version_from_file and not version_from_git:
+        Context.g_module.VERSION = version_from_file
+        return
 
-    # version was obtained from git, update VERSION file if necessary
-    if versionFile is not None:
-        try:
-            if versionFile.read() == Context.g_module.VERSION:
-                # already up-to-date
-                return
-        except EnvironmentError as e:
-            Logs.warn('%s exists but is not readable (%s)' % (versionFile, e.strerror))
-    else:
-        versionFile = ctx.path.make_node('VERSION.info')
-
+    # update VERSION.info if necessary
+    if version_from_file == Context.g_module.VERSION:
+        # already up-to-date
+        return
+    if version_file is None:
+        version_file = ctx.path.make_node('VERSION.info')
     try:
-        versionFile.write(Context.g_module.VERSION)
-    except EnvironmentError as e:
-        Logs.warn('%s is not writable (%s)' % (versionFile, e.strerror))
+        version_file.write(Context.g_module.VERSION)
+    except OSError as e:
+        Logs.warn(f'{e.filename} is not writable ({e.strerror})')
 
 
 def dist(ctx):
+    ctx.algo = 'tar.xz'
     version(ctx)
 
 
 def distcheck(ctx):
+    ctx.algo = 'tar.xz'
     version(ctx)

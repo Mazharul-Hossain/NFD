@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,16 +34,15 @@
 #include <ndn-cxx/mgmt/nfd/control-response.hpp>
 #include <ndn-cxx/util/dummy-client-face.hpp>
 
+#include <boost/asio/defer.hpp>
 #include <boost/concept/assert.hpp>
 
-namespace nfd {
-namespace tools {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
 using ndn::nfd::ControlParameters;
 
-/** \brief Fixture to emulate NFD management.
+/**
+ * \brief Fixture to emulate NFD management.
  */
 class MockNfdMgmtFixture : public IoFixture, public KeyChainFixture
 {
@@ -54,26 +53,26 @@ protected:
   {
     face.onSendInterest.connect([this] (const Interest& interest) {
       if (processInterest) {
-        m_io.post([=] { processInterest(interest); });
+        boost::asio::defer(m_io, [=] { processInterest(interest); });
       }
     });
   }
 
 protected: // ControlCommand
-  /** \brief check the Interest is a command with specified prefix
+  /** \brief Check the Interest is a command with specified prefix.
    *  \retval nullopt last Interest is not the expected command
    *  \return command parameters
    */
-  static optional<ControlParameters>
+  static std::optional<ControlParameters>
   parseCommand(const Interest& interest, const Name& expectedPrefix)
   {
     if (!expectedPrefix.isPrefixOf(interest.getName())) {
-      return nullopt;
+      return std::nullopt;
     }
     return ControlParameters(interest.getName().at(expectedPrefix.size()).blockFromValue());
   }
 
-  /** \brief send successful response to a command Interest
+  /** \brief Send successful response to a command Interest.
    */
   void
   succeedCommand(const Interest& interest, const ControlParameters& parameters)
@@ -81,7 +80,7 @@ protected: // ControlCommand
     this->sendCommandReply(interest, 200, "OK", parameters.wireEncode());
   }
 
-  /** \brief send failure response to a command Interest
+  /** \brief Send failure response to a command Interest.
    */
   void
   failCommand(const Interest& interest, uint32_t code, const std::string& text)
@@ -89,7 +88,7 @@ protected: // ControlCommand
     this->sendCommandReply(interest, {code, text});
   }
 
-  /** \brief send failure response to a command Interest
+  /** \brief Send failure response to a command Interest.
    */
   void
   failCommand(const Interest& interest, uint32_t code, const std::string& text, const ControlParameters& body)
@@ -98,17 +97,17 @@ protected: // ControlCommand
   }
 
 protected: // StatusDataset
-  /** \brief send an empty dataset in reply to StatusDataset request
+  /** \brief Send an empty dataset in reply to StatusDataset request.
    *  \param prefix dataset prefix without version and segment
    *  \pre Interest for dataset has been expressed, sendDataset has not been invoked
    */
   void
   sendEmptyDataset(const Name& prefix)
   {
-    this->sendDatasetReply(prefix, nullptr, 0);
+    this->sendDatasetReply(prefix, span<uint8_t>{});
   }
 
-  /** \brief send one WireEncodable in reply to StatusDataset request
+  /** \brief Send one WireEncodable in reply to StatusDataset request.
    *  \param prefix dataset prefix without version and segment
    *  \param payload payload block
    *  \note payload must fit in one Data
@@ -123,7 +122,7 @@ protected: // StatusDataset
     this->sendDatasetReply(prefix, payload.wireEncode());
   }
 
-  /** \brief send two WireEncodables in reply to StatusDataset request
+  /** \brief Send two WireEncodables in reply to StatusDataset request.
    *  \param prefix dataset prefix without version and segment
    *  \param payload1 first vector item
    *  \param payload2 second vector item
@@ -141,7 +140,7 @@ protected: // StatusDataset
     payload2.wireEncode(buffer);
     payload1.wireEncode(buffer);
 
-    this->sendDatasetReply(prefix, buffer.buf(), buffer.size());
+    this->sendDatasetReply(prefix, buffer);
   }
 
 private:
@@ -170,11 +169,11 @@ private:
     this->sendCommandReply(interest, ndn::nfd::ControlResponse(code, text).setBody(body));
   }
 
-  /** \brief send a payload in reply to StatusDataset request
+  /** \brief Send a payload in reply to StatusDataset request.
    *  \param name dataset prefix without version and segment
    *  \param contentArgs passed to Data::setContent
    */
-  template<typename ...ContentArgs>
+  template<typename... ContentArgs>
   void
   sendDatasetReply(Name name, ContentArgs&&... contentArgs)
   {
@@ -206,24 +205,23 @@ private:
   }
 
 protected:
-  ndn::util::DummyClientFace face;
+  ndn::DummyClientFace face;
   std::function<void(const Interest&)> processInterest;
 };
 
-} // namespace tests
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tests
 
-/** \brief require the command in \p interest has expected prefix
- *  \note This must be used in processInterest lambda, and the Interest must be named 'interest'.
- *  \return ControlParameters, or nullopt if \p interest does match \p expectedPrefix
+/**
+ * \brief Require the command in \p interest to have the expected prefix.
+ * \note This must be used in the `processInterest` lambda, and the Interest must be named `interest`.
+ * \return ControlParameters. The test case will fail if \p interest does not match \p expectedPrefix.
  */
 #define MOCK_NFD_MGMT_REQUIRE_COMMAND_IS(expectedPrefix) \
-  [interest] { \
+  [&interest] { \
     auto params = parseCommand(interest, (expectedPrefix)); \
-    BOOST_REQUIRE_MESSAGE(params, "Interest " << interest.getName() << \
-                          " does not match command prefix " << (expectedPrefix)); \
+    BOOST_REQUIRE_MESSAGE(params.has_value(), "Interest " << interest.getName() << \
+                          " must match the prefix " << (expectedPrefix)); \
     return *params; \
-  } ()
+  }()
 
 #endif // NFD_TESTS_TOOLS_MOCK_NFD_MGMT_FIXTURE_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,10 +29,10 @@
 #include "strategy.hpp"
 #include "retx-suppression-exponential.hpp"
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
-/** \brief A forwarding strategy that forwards Interests to all FIB nexthops
+/**
+ * \brief A forwarding strategy that forwards Interests to all FIB nexthops.
  */
 class MulticastStrategy : public Strategy
 {
@@ -49,17 +49,18 @@ public: // triggers
                        const shared_ptr<pit::Entry>& pitEntry) override;
 
   void
+  onInterestLoop(const Interest& interest, const FaceEndpoint& ingress) override
+  {
+    // do nothing
+  }
+
+  void
   afterNewNextHop(const fib::NextHop& nextHop, const shared_ptr<pit::Entry>& pitEntry) override;
 
-private:
-  RetxSuppressionExponential m_retxSuppression;
-
 NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
-  static const time::milliseconds RETX_SUPPRESSION_INITIAL;
-  static const time::milliseconds RETX_SUPPRESSION_MAX;
+  std::unique_ptr<RetxSuppressionExponential> m_retxSuppression;
 };
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
 #endif // NFD_DAEMON_FW_MULTICAST_STRATEGY_HPP

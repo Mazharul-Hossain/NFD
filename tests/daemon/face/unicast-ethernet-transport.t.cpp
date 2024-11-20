@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,18 +23,18 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "transport-test-common.hpp"
-
-#include "ethernet-fixture.hpp"
+#include "ethernet-transport-fixture.hpp"
 
 #include "common/global.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+#include "tests/daemon/face/transport-test-common.hpp"
+
+namespace nfd::tests {
+
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
-BOOST_FIXTURE_TEST_SUITE(TestUnicastEthernetTransport, EthernetFixture)
+BOOST_FIXTURE_TEST_SUITE(TestUnicastEthernetTransport, EthernetTransportFixture)
 
 BOOST_AUTO_TEST_CASE(StaticProperties)
 {
@@ -111,13 +111,13 @@ BOOST_AUTO_TEST_CASE(ExpirationTime)
 {
   SKIP_IF_ETHERNET_NETIF_COUNT_LT(1);
   initializeUnicast(nullptr, ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
-  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::TimePoint::max());
+  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::time_point::max());
 
   transport->setPersistency(ndn::nfd::FACE_PERSISTENCY_PERSISTENT);
-  BOOST_CHECK_EQUAL(transport->getExpirationTime(), time::steady_clock::TimePoint::max());
+  BOOST_CHECK_EQUAL(transport->getExpirationTime(), time::steady_clock::time_point::max());
 
   transport->setPersistency(ndn::nfd::FACE_PERSISTENCY_ON_DEMAND);
-  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::TimePoint::max());
+  BOOST_CHECK_NE(transport->getExpirationTime(), time::steady_clock::time_point::max());
 }
 
 BOOST_AUTO_TEST_CASE(Close)
@@ -180,6 +180,4 @@ BOOST_AUTO_TEST_CASE(SendQueueLength)
 BOOST_AUTO_TEST_SUITE_END() // TestUnicastEthernetTransport
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

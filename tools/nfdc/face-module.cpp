@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,12 +24,13 @@
  */
 
 #include "face-module.hpp"
-#include "canonizer.hpp"
-#include "find-face.hpp"
+#include "face-helpers.hpp"
 
-namespace nfd {
-namespace tools {
-namespace nfdc {
+#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
+
+#include <boost/lexical_cast/try_lexical_convert.hpp>
+
+namespace nfd::tools::nfdc {
 
 void
 FaceModule::registerCommands(CommandParser& parser)
@@ -132,7 +133,7 @@ FaceModule::show(ExecuteContext& ctx)
   }
 }
 
-/** \brief order persistency in NONE < ON_DEMAND < PERSISTENCY < PERMANENT
+/** \brief Order persistency in NONE < ON_DEMAND < PERSISTENCY < PERMANENT.
  */
 static bool
 persistencyLessThan(FacePersistency x, FacePersistency y)
@@ -164,7 +165,7 @@ FaceModule::create(ExecuteContext& ctx)
   auto mtuArg = ctx.args.getOptional<std::string>("mtu");
 
   // MTU is nominally a uint64_t, but can be the string value 'auto' to unset an override MTU
-  optional<uint64_t> mtu;
+  std::optional<uint64_t> mtu;
   if (mtuArg == "auto") {
     mtu = std::numeric_limits<uint64_t>::max();
   }
@@ -180,8 +181,8 @@ FaceModule::create(ExecuteContext& ctx)
     mtu = static_cast<uint64_t>(v);
   }
 
-  optional<FaceUri> canonicalRemote;
-  optional<FaceUri> canonicalLocal;
+  std::optional<FaceUri> canonicalRemote;
+  std::optional<FaceUri> canonicalLocal;
 
   auto updateFace = [&] (ControlParameters respParams, ControlParameters resp) {
     // faces/update response does not have FaceUris, copy from faces/create response
@@ -362,13 +363,13 @@ FaceModule::destroy(ExecuteContext& ctx)
 }
 
 void
-FaceModule::fetchStatus(Controller& controller,
+FaceModule::fetchStatus(ndn::nfd::Controller& controller,
                         const std::function<void()>& onSuccess,
-                        const Controller::DatasetFailCallback& onFailure,
+                        const ndn::nfd::DatasetFailureCallback& onFailure,
                         const CommandOptions& options)
 {
   controller.fetch<ndn::nfd::FaceDataset>(
-    [this, onSuccess] (const std::vector<FaceStatus>& result) {
+    [this, onSuccess] (const auto& result) {
       m_status = result;
       onSuccess();
     },
@@ -557,6 +558,4 @@ FaceModule::printFaceParams(std::ostream& os, text::ItemAttributes& ia, const Co
   os << '\n';
 }
 
-} // namespace nfdc
-} // namespace tools
-} // namespace nfd
+} // namespace nfd::tools::nfdc

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,15 +25,15 @@
 
 #include "fw/asf-strategy.hpp"
 
+#include "tests/daemon/face/dummy-face.hpp"
+
 #include "strategy-tester.hpp"
 #include "topology-tester.hpp"
 
-namespace nfd {
-namespace fw {
-namespace asf {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::fw::tests;
+using fw::AsfStrategy;
+using fw::asf::FaceInfo;
 
 // The tester is unused in this file, but it's used in various templated test suites.
 using AsfStrategyTester = StrategyTester<AsfStrategy>;
@@ -71,10 +71,9 @@ protected:
     nodeC = topo.addForwarder("C");
     nodeD = topo.addForwarder("D");
 
-    topo.setStrategy<AsfStrategy>(nodeA, Name("/"), parameters);
-    topo.setStrategy<AsfStrategy>(nodeB, Name("/"), parameters);
-    topo.setStrategy<AsfStrategy>(nodeC, Name("/"), parameters);
-    topo.setStrategy<AsfStrategy>(nodeD, Name("/"), parameters);
+    for (auto node : {nodeA, nodeB, nodeC, nodeD}) {
+      topo.setStrategy<AsfStrategy>(node, Name("/"), parameters);
+    }
 
     linkAB = topo.addLink("AB", 10_ms, {nodeA, nodeB});
     linkAD = topo.addLink("AD", 100_ms, {nodeA, nodeD});
@@ -115,10 +114,8 @@ protected:
   shared_ptr<TopologyAppLink> consumer;
   shared_ptr<TopologyAppLink> producer;
 
-  static const Name PRODUCER_PREFIX;
+  static inline const Name PRODUCER_PREFIX{"/hr/C"};
 };
-
-const Name AsfGridFixture::PRODUCER_PREFIX("/hr/C");
 
 class AsfStrategyParametersGridFixture : public AsfGridFixture
 {
@@ -126,7 +123,7 @@ protected:
   AsfStrategyParametersGridFixture()
     : AsfGridFixture(Name(AsfStrategy::getStrategyName())
                      .append("probing-interval~30000")
-                     .append("n-silent-timeouts~5"))
+                     .append("max-timeouts~5"))
   {
   }
 };
@@ -153,8 +150,8 @@ BOOST_FIXTURE_TEST_CASE(Basic, AsfGridFixture)
   linkAB->fail();
 
   runConsumer();
-  // We experience 3 silent timeouts before marking AB as timed out on the fourth interest.
-  BOOST_CHECK_EQUAL(consumer->getForwarderFace().getCounters().nOutData, 56);
+  // We experience 3 timeouts and marked AB as timed out
+  BOOST_CHECK_EQUAL(consumer->getForwarderFace().getCounters().nOutData, 57);
   BOOST_CHECK_LE(linkAB->getFace(nodeA).getCounters().nOutInterests, 36);
   BOOST_CHECK_GE(linkAD->getFace(nodeA).getCounters().nOutInterests, 24);
 
@@ -166,7 +163,7 @@ BOOST_FIXTURE_TEST_CASE(Basic, AsfGridFixture)
   this->advanceClocks(10_ms, 10_s);
 
   runConsumer();
-  BOOST_CHECK_EQUAL(consumer->getForwarderFace().getCounters().nOutData, 86);
+  BOOST_CHECK_EQUAL(consumer->getForwarderFace().getCounters().nOutData, 87);
   BOOST_CHECK_GE(linkAB->getFace(nodeA).getCounters().nOutInterests, 50);
   BOOST_CHECK_LE(linkAD->getFace(nodeA).getCounters().nOutInterests, 40);
 
@@ -176,7 +173,7 @@ BOOST_FIXTURE_TEST_CASE(Basic, AsfGridFixture)
 
   runConsumer();
 
-  BOOST_CHECK_EQUAL(consumer->getForwarderFace().getCounters().nOutData, 86);
+  BOOST_CHECK_EQUAL(consumer->getForwarderFace().getCounters().nOutData, 87);
   BOOST_CHECK_LE(linkAB->getFace(nodeA).getCounters().nOutInterests, 65); // FIXME #3830
   BOOST_CHECK_GE(linkAD->getFace(nodeA).getCounters().nOutInterests, 57); // FIXME #3830
 }
@@ -282,7 +279,7 @@ BOOST_AUTO_TEST_CASE(Retransmission) // Bug #4874
   consumer->getClientFace().expressInterest(*interest, nullptr, nullptr, nullptr);
   this->advanceClocks(time::milliseconds(100));
 
-  auto outRecord = pitEntry->getOutRecord(linkBC->getFace(nodeB));
+  auto outRecord = pitEntry->findOutRecord(linkBC->getFace(nodeB));
   BOOST_CHECK(outRecord != pitEntry->out_end());
 
   this->advanceClocks(time::milliseconds(100));
@@ -453,7 +450,7 @@ BOOST_AUTO_TEST_CASE(NoPitOutRecordAndProbeInterestNewNonce)
       // Get pitEntry of node A
       auto pitEntry = topo.getForwarder(nodeA).getPit().find(*interest);
       // Get outRecord associated with face towards B
-      auto outRecord = pitEntry->getOutRecord(linkAB->getFace(nodeA));
+      auto outRecord = pitEntry->findOutRecord(linkAB->getFace(nodeA));
       BOOST_REQUIRE(outRecord != pitEntry->out_end());
 
       // Check that Nonce of interest is not equal to Nonce of Probe
@@ -473,12 +470,12 @@ BOOST_AUTO_TEST_CASE(NoPitOutRecordAndProbeInterestNewNonce)
       pitEntry = topo.getForwarder(nodeB).getPit().find(*interest);
 
       // Get outRecord associated with face towards D.
-      outRecord = pitEntry->getOutRecord(linkBD->getFace(nodeB));
+      outRecord = pitEntry->findOutRecord(linkBD->getFace(nodeB));
       BOOST_CHECK(outRecord != pitEntry->out_end());
 
       // RTT between B and D
       this->advanceClocks(5_ms, 160_ms);
-      outRecord = pitEntry->getOutRecord(linkBD->getFace(nodeB));
+      outRecord = pitEntry->findOutRecord(linkBD->getFace(nodeB));
 
       BOOST_CHECK_EQUAL(linkBD->getFace(nodeB).getCounters().nInData, i);
 
@@ -509,11 +506,11 @@ BOOST_FIXTURE_TEST_CASE(IgnoreTimeouts, AsfStrategyParametersGridFixture)
   // Bring down 10 ms link
   linkAB->fail();
 
-  // Send 6 interests, first 5 will be ignored and on the 6th it will record the timeout
+  // Send 5 interests, after the last one it will record the timeout
   // ready to switch for the next interest
-  runConsumer(6);
+  runConsumer(5);
 
-  // Check that link has not been switched to 100 ms because n-silent-timeouts = 5
+  // Check that link has not been switched to 100 ms because max-timeouts = 5
   BOOST_CHECK_EQUAL(linkAD->getFace(nodeA).getCounters().nOutInterests, outInterestsBeforeFailure);
 
   // Send 5 interests, check that 100 ms link is used
@@ -542,42 +539,398 @@ BOOST_FIXTURE_TEST_CASE(ProbingInterval, AsfStrategyParametersGridFixture)
   BOOST_CHECK_EQUAL(linkAC->getFace(nodeA).getCounters().nOutInterests, 1);
 }
 
-BOOST_AUTO_TEST_CASE(InstantiationWithParameters)
+BOOST_AUTO_TEST_CASE(Parameters)
 {
   FaceTable faceTable;
   Forwarder forwarder{faceTable};
 
-  auto checkValidity = [&] (std::string parameters, bool isCorrect) {
-    Name strategyName(Name(AsfStrategy::getStrategyName()).append(std::move(parameters)));
+  auto checkValidity = [&] (std::string_view parameters, bool isCorrect) {
+    BOOST_TEST_INFO_SCOPE(parameters);
+    Name strategyName(Name(AsfStrategy::getStrategyName()).append(Name(parameters)));
+    std::unique_ptr<AsfStrategy> strategy;
     if (isCorrect) {
-      BOOST_CHECK_NO_THROW(make_unique<AsfStrategy>(forwarder, strategyName));
+      strategy = make_unique<AsfStrategy>(forwarder, strategyName);
+      BOOST_CHECK(strategy->m_retxSuppression != nullptr);
     }
     else {
       BOOST_CHECK_THROW(make_unique<AsfStrategy>(forwarder, strategyName), std::invalid_argument);
     }
+    return strategy;
   };
 
-  checkValidity("/probing-interval~30000/n-silent-timeouts~5", true);
-  checkValidity("/n-silent-timeouts~5/probing-interval~30000", true);
-  checkValidity("/probing-interval~30000", true);
-  checkValidity("/n-silent-timeouts~5", true);
-  checkValidity("", true);
+  auto strategy = checkValidity("", true);
+  BOOST_TEST(strategy->m_probing.getProbingInterval() == 60_s);
+  BOOST_TEST(strategy->m_nMaxTimeouts == 3);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 5_min);
+  strategy = checkValidity("/probing-interval~30000/max-timeouts~5/measurements-lifetime~120000", true);
+  BOOST_TEST(strategy->m_probing.getProbingInterval() == 30_s);
+  BOOST_TEST(strategy->m_nMaxTimeouts == 5);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 2_min);
+  strategy = checkValidity("/max-timeouts~5/probing-interval~30000", true);
+  BOOST_TEST(strategy->m_probing.getProbingInterval() == 30_s);
+  BOOST_TEST(strategy->m_nMaxTimeouts == 5);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 5_min);
+  strategy = checkValidity("/max-timeouts~5/measurements-lifetime~120000", true);
+  BOOST_TEST(strategy->m_nMaxTimeouts == 5);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 2_min);
+  strategy = checkValidity("/probing-interval~30000/measurements-lifetime~120000", true);
+  BOOST_TEST(strategy->m_probing.getProbingInterval() == 30_s);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 2_min);
+  strategy = checkValidity("/probing-interval~1000", true);
+  BOOST_TEST(strategy->m_probing.getProbingInterval() == 1_s);
+  BOOST_TEST(strategy->m_nMaxTimeouts == 3);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 5_min);
+  strategy = checkValidity("/max-timeouts~0", true);
+  BOOST_TEST(strategy->m_probing.getProbingInterval() == 60_s);
+  BOOST_TEST(strategy->m_nMaxTimeouts == 0);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 5_min);
+  strategy = checkValidity("/measurements-lifetime~120000", true);
+  BOOST_TEST(strategy->m_probing.getProbingInterval() == 60_s);
+  BOOST_TEST(strategy->m_nMaxTimeouts == 3);
+  BOOST_TEST(strategy->m_measurements.getMeasurementsLifetime() == 2_min);
+  BOOST_TEST(strategy->m_retxSuppression->m_initialInterval == fw::RetxSuppressionExponential::DEFAULT_INITIAL_INTERVAL);
+  BOOST_TEST(strategy->m_retxSuppression->m_maxInterval == fw::RetxSuppressionExponential::DEFAULT_MAX_INTERVAL);
+  BOOST_TEST(strategy->m_retxSuppression->m_multiplier == fw::RetxSuppressionExponential::DEFAULT_MULTIPLIER);
 
-  checkValidity("/probing-interval~500", false); // At least 1 seconds
+  checkValidity("/probing-interval~500", false); // minimum is 1 second
   checkValidity("/probing-interval~-5000", false);
-  checkValidity("/n-silent-timeouts~-5", false);
-  checkValidity("/n-silent-timeouts~-5/probing-interval~-30000", false);
-  checkValidity("/n-silent-timeouts", false);
-  checkValidity("/probing-interval~", false);
-  checkValidity("/~1000", false);
+  checkValidity("/max-timeouts~-1", false);
+  checkValidity("/max-timeouts~ -1", false);
+  checkValidity("/max-timeouts~1-0", false);
+  checkValidity("/max-timeouts~1/probing-interval~-30000", false);
   checkValidity("/probing-interval~foo", false);
-  checkValidity("/n-silent-timeouts~1~2", false);
+  checkValidity("/max-timeouts~1~2", false);
+  checkValidity("/measurements-lifetime~1000", false); //Minimum is 60s by default
+  //Measurement lifetime must be greater than probing interval
+  checkValidity("/measurements-lifetime~1000/probing-interval~30000", false);
+  checkValidity("/measurements-lifetime~-120000", false);
+  checkValidity("/measurements-lifetime~ -120000", false);
+  checkValidity("/measurements-lifetime~0-120000", false);
+  checkValidity("/max-timeouts~1/measurements-lifetime~-120000", false);
+  checkValidity("/probing-interval~30000/measurements-lifetime~-120000", false);
+  checkValidity("/max-timeouts~1/probing-interval~30000/measurements-lifetime~-120000", false);
+}
+
+BOOST_AUTO_TEST_CASE(FaceRankingForForwarding)
+{
+  const Name PRODUCER_PREFIX = "/ndn/edu/nodeD/ping";
+  AsfStrategy::FaceStatsForwardingSet rankedFaces;
+
+  //Group 1- Working Measured Faces
+  FaceInfo group1_a(nullptr);
+  group1_a.recordRtt(25_ms);
+  DummyFace face1_a;
+  face1_a.setId(1);
+  rankedFaces.insert({&face1_a, group1_a.getLastRtt(), group1_a.getSrtt(), 0});
+  // Higher FaceId
+  FaceInfo group1_b(nullptr);
+  group1_b.recordRtt(25_ms);
+  DummyFace face1_b;
+  face1_b.setId(2);
+  rankedFaces.insert({&face1_b, group1_b.getLastRtt(), group1_b.getSrtt(), 0});
+  //Higher SRTT
+  FaceInfo group1_c(nullptr);
+  group1_c.recordRtt(30_ms);
+  DummyFace face1_c;
+  face1_c.setId(3);
+  rankedFaces.insert({&face1_c, group1_c.getLastRtt(), group1_c.getSrtt(), 0});
+  //Higher SRTT/Cost
+  FaceInfo group1_d(nullptr);
+  group1_d.recordRtt(30_ms);
+  DummyFace face1_d;
+  face1_d.setId(4);
+  rankedFaces.insert({&face1_d, group1_d.getLastRtt(), group1_d.getSrtt(), 1});
+  //Group 2- Unmeasured Faces
+  FaceInfo group2_a(nullptr);
+  DummyFace face2_a;
+  face2_a.setId(5);
+  rankedFaces.insert({&face2_a, FaceInfo::RTT_NO_MEASUREMENT,
+                      FaceInfo::RTT_NO_MEASUREMENT, 0});
+  //Higher FaceId
+  FaceInfo group2_b(nullptr);
+  DummyFace face2_b;
+  face2_b.setId(6);
+  rankedFaces.insert({&face2_b, FaceInfo::RTT_NO_MEASUREMENT,
+                      FaceInfo::RTT_NO_MEASUREMENT, 0});
+  //Higher Cost
+  FaceInfo group2_c(nullptr);
+  DummyFace face2_c;
+  face2_c.setId(7);
+  rankedFaces.insert({&face2_c, FaceInfo::RTT_NO_MEASUREMENT,
+                      FaceInfo::RTT_NO_MEASUREMENT, 1});
+  //Group 3- Timeout Faces
+  //Lowest cost, high SRTT
+  FaceInfo group3_a(nullptr);
+  group3_a.recordRtt(30_ms);
+  group3_a.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_a;
+  face3_a.setId(8);
+  rankedFaces.insert({&face3_a, group3_a.getLastRtt(), group3_a.getSrtt(), 0});
+  //Lowest cost, lower SRTT, higher FaceId
+  FaceInfo group3_b(nullptr);
+  group3_b.recordRtt(30_ms);
+  group3_b.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_b;
+  face3_b.setId(9);
+  rankedFaces.insert({&face3_b, group3_b.getLastRtt(), group3_b.getSrtt(), 0});
+  //Lowest cost, higher SRTT, higher FaceId
+  FaceInfo group3_c(nullptr);
+  group3_c.recordRtt(45_ms);
+  group3_c.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_c;
+  face3_c.setId(10);
+  rankedFaces.insert({&face3_c, group3_c.getLastRtt(), group3_c.getSrtt(), 0});
+  //Lowest cost, no SRTT, higher FaceId
+  FaceInfo group3_d(nullptr);
+  group3_d.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_d;
+  face3_d.setId(11);
+  rankedFaces.insert({&face3_d, group3_d.getLastRtt(), FaceInfo::RTT_NO_MEASUREMENT, 0});
+  //Higher cost, lower SRTT, higher FaceId
+  FaceInfo group3_e(nullptr);
+  group3_e.recordRtt(15_ms);
+  group3_e.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_e;
+  face3_e.setId(12);
+  rankedFaces.insert({&face3_e, group3_e.getLastRtt(), group3_e.getSrtt(), 1});
+  //Higher cost, higher SRTT, higher FaceId
+  FaceInfo group3_f(nullptr);
+  group3_f.recordRtt(45_ms);
+  group3_f.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_f;
+  face3_f.setId(13);
+  rankedFaces.insert({&face3_f, group3_f.getLastRtt(), group3_f.getSrtt(), 1});
+  //Higher cost, no SRTT, higher FaceId
+  FaceInfo group3_g(nullptr);
+  group3_g.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_g;
+  face3_g.setId(14);
+  rankedFaces.insert({&face3_g, FaceInfo::RTT_TIMEOUT,
+                      FaceInfo::RTT_NO_MEASUREMENT, 1});
+  auto face = rankedFaces.begin();
+  //Group 1 - Working Measured Faces
+  BOOST_CHECK_EQUAL(face->rtt, group1_a.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_a.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 1);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, group1_b.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_b.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 2);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, group1_c.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_c.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 3);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, group1_d.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_d.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 4);
+  face++;
+  //Group 2 - Unmeasured Faces
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 5);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 6);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 7);
+  face++;
+  //Group 3 - Timeout
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_a.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 8);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_b.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 9);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_c.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 10);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 11);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_e.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 12);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_f.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 13);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 14);
+  // face++;
+}
+
+BOOST_AUTO_TEST_CASE(FaceRankingForProbing)
+{
+  const Name PRODUCER_PREFIX = "/ndn/edu/nodeD/ping";
+  fw::asf::ProbingModule::FaceStatsProbingSet rankedFaces;
+
+  //Group 2- Unmeasured Faces
+  FaceInfo group2_a(nullptr);
+  DummyFace face2_a;
+  face2_a.setId(1);
+  rankedFaces.insert({&face2_a, FaceInfo::RTT_NO_MEASUREMENT,
+                      FaceInfo::RTT_NO_MEASUREMENT, 0});
+  //Higher FaceId
+  FaceInfo group2_b(nullptr);
+  DummyFace face2_b;
+  face2_b.setId(2);
+  rankedFaces.insert({&face2_b, FaceInfo::RTT_NO_MEASUREMENT,
+                      FaceInfo::RTT_NO_MEASUREMENT, 0});
+  //Higher Cost
+  FaceInfo group2_c(nullptr);
+  DummyFace face2_c;
+  face2_c.setId(3);
+  rankedFaces.insert({&face2_c, FaceInfo::RTT_NO_MEASUREMENT,
+                      FaceInfo::RTT_NO_MEASUREMENT, 1});
+
+  //Group 1- Working Measured Faces
+  FaceInfo group1_a(nullptr);
+  group1_a.recordRtt(25_ms);
+  DummyFace face1_a;
+  face1_a.setId(4);
+  rankedFaces.insert({&face1_a, group1_a.getLastRtt(), group1_a.getSrtt(), 0});
+  // Higher FaceId
+  FaceInfo group1_b(nullptr);
+  group1_b.recordRtt(25_ms);
+  DummyFace face1_b;
+  face1_b.setId(5);
+  rankedFaces.insert({&face1_b, group1_b.getLastRtt(), group1_b.getSrtt(), 0});
+  //Higher SRTT
+  FaceInfo group1_c(nullptr);
+  group1_c.recordRtt(30_ms);
+  DummyFace face1_c;
+  face1_c.setId(6);
+  rankedFaces.insert({&face1_c, group1_c.getLastRtt(), group1_c.getSrtt(), 0});
+  //Higher SRTT/Cost
+  FaceInfo group1_d(nullptr);
+  group1_d.recordRtt(30_ms);
+  DummyFace face1_d;
+  face1_d.setId(7);
+  rankedFaces.insert({&face1_d, group1_d.getLastRtt(), group1_d.getSrtt(), 1});
+
+  //Group 3- Timeout Faces
+  //Lowest cost, high SRTT
+  FaceInfo group3_a(nullptr);
+  group3_a.recordRtt(30_ms);
+  group3_a.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_a;
+  face3_a.setId(8);
+  rankedFaces.insert({&face3_a, group3_a.getLastRtt(), group3_a.getSrtt(), 0});
+  //Lowest cost, lower SRTT, higher FaceId
+  FaceInfo group3_b(nullptr);
+  group3_b.recordRtt(30_ms);
+  group3_b.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_b;
+  face3_b.setId(9);
+  rankedFaces.insert({&face3_b, group3_b.getLastRtt(), group3_b.getSrtt(), 0});
+  //Lowest cost, higher SRTT, higher FaceId
+  FaceInfo group3_c(nullptr);
+  group3_c.recordRtt(45_ms);
+  group3_c.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_c;
+  face3_c.setId(10);
+  rankedFaces.insert({&face3_c, group3_c.getLastRtt(), group3_c.getSrtt(), 0});
+  //Lowest cost, no SRTT, higher FaceId
+  FaceInfo group3_d(nullptr);
+  group3_d.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_d;
+  face3_d.setId(11);
+  rankedFaces.insert({&face3_d, group3_d.getLastRtt(), FaceInfo::RTT_NO_MEASUREMENT, 0});
+  //Higher cost, lower SRTT, higher FaceId
+  FaceInfo group3_e(nullptr);
+  group3_e.recordRtt(15_ms);
+  group3_e.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_e;
+  face3_e.setId(12);
+  rankedFaces.insert({&face3_e, group3_e.getLastRtt(), group3_e.getSrtt(), 1});
+  //Higher cost, higher SRTT, higher FaceId
+  FaceInfo group3_f(nullptr);
+  group3_f.recordRtt(45_ms);
+  group3_f.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_f;
+  face3_f.setId(13);
+  rankedFaces.insert({&face3_f, group3_f.getLastRtt(), group3_f.getSrtt(), 1});
+  //Higher cost, no SRTT, higher FaceId
+  FaceInfo group3_g(nullptr);
+  group3_g.recordTimeout(PRODUCER_PREFIX);
+  DummyFace face3_g;
+  face3_g.setId(14);
+  rankedFaces.insert({&face3_g, group3_g.getLastRtt(),
+                      FaceInfo::RTT_NO_MEASUREMENT, 1});
+  auto face = rankedFaces.begin();
+
+  //Group 2 - Unmeasured Faces
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 1);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 2);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 3);
+  face++;
+  //Group 1 - Working Measured Faces
+  BOOST_CHECK_EQUAL(face->rtt, group1_a.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_a.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 4);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, group1_b.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_b.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 5);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, group1_c.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_c.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 6);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, group1_d.getLastRtt());
+  BOOST_CHECK_EQUAL(face->srtt, group1_d.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 7);
+  face++;
+  //Group 3 - Timeout
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_a.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 8);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_b.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 9);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_c.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 10);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 11);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_e.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 12);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, group3_f.getSrtt());
+  BOOST_CHECK_EQUAL(face->face->getId(), 13);
+  face++;
+  BOOST_CHECK_EQUAL(face->rtt, FaceInfo::RTT_TIMEOUT);
+  BOOST_CHECK_EQUAL(face->srtt, FaceInfo::RTT_NO_MEASUREMENT);
+  BOOST_CHECK_EQUAL(face->face->getId(), 14);
+  // face++;
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestAsfStrategy
 BOOST_AUTO_TEST_SUITE_END() // Fw
 
-} // namespace tests
-} // namespace asf
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::tests

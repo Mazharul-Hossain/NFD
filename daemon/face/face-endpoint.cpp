@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -23,17 +23,31 @@
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "pit-in-record.hpp"
+#include "face-endpoint.hpp"
+
+#include <boost/hana/functional/overload.hpp>
 
 namespace nfd {
-namespace pit {
 
-void
-InRecord::update(const Interest& interest)
+FaceEndpoint::FaceEndpoint(Face& face, const EndpointId& endpoint)
+  : face(face)
+  , endpoint(endpoint)
 {
-  FaceRecord::update(interest);
-  m_interest = interest.shared_from_this();
 }
 
-} // namespace pit
+void
+FaceEndpoint::print(std::ostream& os) const
+{
+  std::visit(boost::hana::overload(
+    [&] (std::monostate) {
+      os << face.getId();
+    },
+    [&] (const ethernet::Address& ep) {
+      os << '(' << face.getId() << ", " << ep << ')';
+    },
+    [&] (const udp::Endpoint& ep) {
+      os << '(' << face.getId() << ", " << ep << ')';
+    }), endpoint);
+}
+
 } // namespace nfd

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,11 +31,9 @@
 #include "dummy-face.hpp"
 #include "dummy-transport.hpp"
 
-namespace nfd {
-namespace face {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::face;
 
 BOOST_AUTO_TEST_SUITE(Face)
 BOOST_FIXTURE_TEST_SUITE(TestFace, GlobalIoFixture)
@@ -106,16 +104,16 @@ BOOST_AUTO_TEST_CASE(LinkServiceSendReceive)
   face1->afterReceiveNack.connect([&] (auto&&...) { ++nReceivedNacks; });
 
   for (size_t i = 0; i < nInInterests; ++i) {
-    face1->receiveInterest(*makeInterest("/JSQdqward4"), 0);
+    face1->receiveInterest(*makeInterest("/JSQdqward4"));
   }
 
   for (size_t i = 0; i < nInData; ++i) {
-    face1->receiveData(*makeData("/hT8FDigWn1"), 0);
+    face1->receiveData(*makeData("/hT8FDigWn1"));
   }
 
   for (size_t i = 0; i < nInNacks; ++i) {
-    face1->receiveNack(makeNack(*makeInterest("/StnEVTj4Ex", false, nullopt, 561),
-                                lp::NackReason::CONGESTION), 0);
+    face1->receiveNack(makeNack(*makeInterest("/StnEVTj4Ex", false, std::nullopt, 561),
+                                lp::NackReason::CONGESTION));
   }
 
   for (size_t i = 0; i < nOutInterests; ++i) {
@@ -127,7 +125,7 @@ BOOST_AUTO_TEST_CASE(LinkServiceSendReceive)
   }
 
   for (size_t i = 0; i < nOutNacks; ++i) {
-    face1->sendNack(makeNack(*makeInterest("/9xK6FbwIBM", false, nullopt, 365),
+    face1->sendNack(makeNack(*makeInterest("/9xK6FbwIBM", false, std::nullopt, 365),
                              lp::NackReason::CONGESTION));
   }
 
@@ -149,6 +147,4 @@ BOOST_AUTO_TEST_CASE(LinkServiceSendReceive)
 BOOST_AUTO_TEST_SUITE_END() // TestFace
 BOOST_AUTO_TEST_SUITE_END() // Face
 
-} // namespace tests
-} // namespace face
-} // namespace nfd
+} // namespace nfd::tests

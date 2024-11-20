@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,12 +28,13 @@
 #include "tests/test-common.hpp"
 #include "tests/daemon/global-io-fixture.hpp"
 
-namespace nfd {
-namespace rib {
-namespace tests {
+#include <boost/lexical_cast.hpp>
 
-using namespace nfd::tests;
+namespace nfd::tests {
 
+using rib::Route;
+
+BOOST_AUTO_TEST_SUITE(Rib)
 BOOST_FIXTURE_TEST_SUITE(TestRoute, GlobalIoTimeFixture)
 
 BOOST_AUTO_TEST_SUITE(CreateFromAnnouncement)
@@ -53,7 +54,7 @@ BOOST_AUTO_TEST_CASE(NoValidity)
 
 BOOST_AUTO_TEST_CASE(BeforeNotBefore)
 {
-  auto pa = makePrefixAnn("/A", 212_s, {10_s, 80_s});
+  auto pa = makePrefixAnn("/A", 212_s, ndn::security::ValidityPeriod::makeRelative(10_s, 80_s));
   Route route(pa, 1053);
   BOOST_CHECK_LE(route.annExpires, time::steady_clock::now());
   BOOST_REQUIRE(route.expires);
@@ -62,7 +63,7 @@ BOOST_AUTO_TEST_CASE(BeforeNotBefore)
 
 BOOST_AUTO_TEST_CASE(AfterNotAfter)
 {
-  auto pa = makePrefixAnn("/A", 212_s, {-80_s, -10_s});
+  auto pa = makePrefixAnn("/A", 212_s, ndn::security::ValidityPeriod::makeRelative(-80_s, -10_s));
   Route route(pa, 2972);
   BOOST_CHECK_LE(route.annExpires, time::steady_clock::now());
   BOOST_REQUIRE(route.expires);
@@ -71,7 +72,7 @@ BOOST_AUTO_TEST_CASE(AfterNotAfter)
 
 BOOST_AUTO_TEST_CASE(ExpirationLtValidity)
 {
-  auto pa = makePrefixAnn("/A", 212_s, {-100_s, 300_s});
+  auto pa = makePrefixAnn("/A", 212_s, ndn::security::ValidityPeriod::makeRelative(-100_s, 300_s));
   Route route(pa, 7804);
   BOOST_CHECK_EQUAL(route.annExpires, time::steady_clock::now() + 212_s);
   BOOST_REQUIRE(route.expires);
@@ -80,7 +81,7 @@ BOOST_AUTO_TEST_CASE(ExpirationLtValidity)
 
 BOOST_AUTO_TEST_CASE(ValidityLtExpiration)
 {
-  auto pa = makePrefixAnn("/A", 212_s, {-100_s, 200_s});
+  auto pa = makePrefixAnn("/A", 212_s, ndn::security::ValidityPeriod::makeRelative(-100_s, 200_s));
   Route route(pa, 7804);
   BOOST_CHECK_EQUAL(route.annExpires, time::steady_clock::now() + 200_s);
   BOOST_REQUIRE(route.expires);
@@ -118,15 +119,12 @@ BOOST_AUTO_TEST_CASE(Equality)
   BOOST_CHECK_NE(a, b);
   a.cost = 103;
 
-  b.expires = nullopt;
+  b.expires = std::nullopt;
   BOOST_CHECK_NE(a, b);
-  a.expires = nullopt;
+  a.expires = std::nullopt;
 
   BOOST_CHECK_EQUAL(a, b);
-}
 
-BOOST_AUTO_TEST_CASE(EqualityAnn)
-{
   auto ann1 = makePrefixAnn("/ann", 1_h);
   auto ann2 = makePrefixAnn("/ann", 2_h);
   BOOST_CHECK_EQUAL(Route(ann1, 7001), Route(ann1, 7001));
@@ -134,7 +132,7 @@ BOOST_AUTO_TEST_CASE(EqualityAnn)
   BOOST_CHECK_NE(Route(ann1, 7001), Route(ann2, 7001));
 }
 
-BOOST_AUTO_TEST_CASE(Output)
+BOOST_AUTO_TEST_CASE(Print)
 {
   Route r;
   BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(r),
@@ -149,7 +147,7 @@ BOOST_AUTO_TEST_CASE(Output)
                     "Route(faceid: 4980, origin: static, cost: 2312, flags: 0x1, expires in: "
                     "791214234 milliseconds)");
 
-  r.expires = nullopt;
+  r.expires = std::nullopt;
   BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(r),
                     "Route(faceid: 4980, origin: static, cost: 2312, flags: 0x1, never expires)");
 
@@ -160,7 +158,6 @@ BOOST_AUTO_TEST_CASE(Output)
 }
 
 BOOST_AUTO_TEST_SUITE_END() // TestRoute
+BOOST_AUTO_TEST_SUITE_END() // Rib
 
-} // namespace tests
-} // namespace rib
-} // namespace nfd
+} // namespace nfd::tests

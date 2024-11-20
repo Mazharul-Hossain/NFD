@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,8 +25,9 @@
 
 #include "congestion-mark-strategy.hpp"
 
-namespace nfd {
-namespace fw {
+#include <boost/lexical_cast.hpp>
+
+namespace nfd::fw {
 
 NFD_REGISTER_STRATEGY(CongestionMarkStrategy);
 
@@ -43,7 +44,7 @@ CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name&
         "Second parameter to CongestionMarkStrategy must be either 'true' or 'false'"));
     }
     m_shouldPreserveMark = parsed.parameters.at(1).toUri() == "true";
-    NDN_CXX_FALLTHROUGH;
+    [[fallthrough]];
   case 1:
     try {
       auto s = parsed.parameters.at(0).toUri();
@@ -55,7 +56,7 @@ CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name&
       NDN_THROW(std::invalid_argument(
         "First parameter to CongestionMarkStrategy must be a non-negative integer"));
     }
-    NDN_CXX_FALLTHROUGH;
+    [[fallthrough]];
   case 0:
     break;
   default:
@@ -63,8 +64,8 @@ CongestionMarkStrategy::CongestionMarkStrategy(Forwarder& forwarder, const Name&
   }
 
   if (parsed.version && *parsed.version != getStrategyName()[-1].toVersion()) {
-    NDN_THROW(std::invalid_argument(
-      "CongestionMarkStrategy does not support version " + to_string(*parsed.version)));
+    NDN_THROW(std::invalid_argument("CongestionMarkStrategy does not support version " +
+                                    std::to_string(*parsed.version)));
   }
   this->setInstanceName(makeInstanceName(name, getStrategyName()));
 }
@@ -91,5 +92,4 @@ CongestionMarkStrategy::afterReceiveInterest(const Interest& interest, const Fac
   }
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

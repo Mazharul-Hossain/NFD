@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,20 +29,28 @@
 #include "forwarder.hpp"
 #include "table/measurements-accessor.hpp"
 
-namespace nfd {
-namespace fw {
+#include <boost/lexical_cast/try_lexical_convert.hpp>
+
+#include <functional>
+#include <map>
+#include <set>
+
+namespace nfd::fw {
+
+class StrategyParameters;
 
 /**
- * \brief Represents a forwarding strategy
+ * \brief Base class of all forwarding strategies.
  */
 class Strategy : noncopyable
 {
 public: // registry
-  /** \brief Register a strategy type
-   *  \tparam S subclass of Strategy
-   *  \param strategyName strategy program name, must contain version
-   *  \note It is permitted to register the same strategy type under multiple names,
-   *        which is useful in tests and for creating aliases.
+  /**
+   * \brief Register a strategy type.
+   * \tparam S subclass of Strategy
+   * \param strategyName strategy program name, must contain version
+   * \note It is permitted to register the same strategy type under multiple names,
+   *       which is useful in tests and for creating aliases.
    */
   template<typename S>
   static void
@@ -50,37 +58,40 @@ public: // registry
   {
     BOOST_ASSERT(strategyName.size() > 1);
     BOOST_ASSERT(strategyName.at(-1).isVersion());
-    Registry& registry = getRegistry();
-    BOOST_ASSERT(registry.count(strategyName) == 0);
-    registry[strategyName] = [] (auto&&... args) {
+    auto r = getRegistry().insert_or_assign(strategyName, [] (auto&&... args) {
       return make_unique<S>(std::forward<decltype(args)>(args)...);
-    };
+    });
+    BOOST_VERIFY(r.second);
   }
 
-  /** \return Whether a strategy instance can be created from \p instanceName
-   *  \param instanceName strategy instance name, may contain version and parameters
-   *  \note This function finds a strategy type using same rules as \p create ,
-   *        but does not attempt to construct an instance.
+  /**
+   * \brief Returns whether a strategy instance can be created from \p instanceName.
+   * \param instanceName strategy instance name, may contain version and parameters
+   * \note This function finds a strategy type using the same rules as create(),
+   *       but does not attempt to construct an instance.
    */
   static bool
   canCreate(const Name& instanceName);
 
-  /** \return A strategy instance created from \p instanceName
-   *  \retval nullptr if !canCreate(instanceName)
-   *  \throw std::invalid_argument strategy type constructor does not accept
-   *                               specified version or parameters
+  /**
+   * \brief Returns a strategy instance created from \p instanceName.
+   * \retval nullptr if `canCreate(instanceName) == false`
+   * \throw std::invalid_argument strategy type constructor does not accept the
+   *                              specified version or parameters
    */
   static unique_ptr<Strategy>
   create(const Name& instanceName, Forwarder& forwarder);
 
-  /** \return Whether \p instanceNameA and \p instanceNameA will initiate same strategy type
+  /**
+   * \brief Returns whether two names will instantiate the same strategy type.
    */
   static bool
   areSameType(const Name& instanceNameA, const Name& instanceNameB);
 
-  /** \return Registered versioned strategy names
+  /**
+   * \brief Returns all registered versioned strategy names.
    */
-  static std::set<Name>
+  [[nodiscard]] static std::set<Name>
   listRegistered();
 
 public: // constructor, destructor, strategy info
@@ -95,22 +106,24 @@ public: // constructor, destructor, strategy info
   ~Strategy();
 
 #ifdef DOXYGEN
-  /** \return Strategy program name
+  /**
+   * \brief Returns the strategy's program name.
    *
-   *  The strategy name is defined by the strategy program.
-   *  It must end with a version component.
+   * The strategy name is defined by the strategy program.
+   * It must end with a version component.
    */
   static const Name&
   getStrategyName();
 #endif
 
-  /** \return Strategy instance name
+  /**
+   * \brief Returns the strategy's instance name.
    *
-   *  The instance name is assigned during instantiation.
-   *  It contains a version component, and may have extra parameter components.
+   * The instance name is assigned during instantiation.
+   * It contains a version component and may have extra parameter components.
    */
   const Name&
-  getInstanceName() const
+  getInstanceName() const noexcept
   {
     return m_name;
   }
@@ -122,7 +135,7 @@ public: // triggers
    * The Interest:
    *  - has not exceeded HopLimit
    *  - does not violate Scope
-   *  - is not looped
+   *  - has not looped
    *  - cannot be satisfied by ContentStore
    *  - is under a namespace managed by this strategy
    *
@@ -146,6 +159,20 @@ public: // triggers
   virtual void
   afterReceiveInterest(const Interest& interest, const FaceEndpoint& ingress,
                        const shared_ptr<pit::Entry>& pitEntry) = 0;
+
+  /**
+   * \brief Trigger after an Interest loop is detected.
+   *
+   * The Interest:
+   *  - has not exceeded HopLimit
+   *  - does not violate Scope
+   *  - has looped
+   *  - is under a namespace managed by this strategy
+   *
+   * In the base class, this method sends a Nack with reason DUPLICATE to \p ingress.
+   */
+  virtual void
+  onInterestLoop(const Interest& interest, const FaceEndpoint& ingress);
 
   /**
    * \brief Trigger after a matching Data is found in the Content Store.
@@ -327,6 +354,21 @@ protected: // actions
   }
 
   /**
+   * \brief Send a Nack packet without going through the outgoing Nack pipeline.
+   *
+   * \param nack the Nack packet
+   * \param egress face through which to send out the Nack
+   * \return Whether the Nack was sent (true) or dropped (false)
+   */
+  NFD_VIRTUAL_WITH_TESTS bool
+  sendNack(const lp::Nack& nack, Face& egress)
+  {
+    egress.sendNack(nack);
+    ++m_forwarder.m_counters.nOutNacks;
+    return true;
+  }
+
+  /**
    * \brief Send Nack to every face that has an in-record, except those in \p exceptFaces
    * \param header the Nack header
    * \param pitEntry the PIT entry
@@ -354,19 +396,19 @@ protected: // accessors
   lookupFib(const pit::Entry& pitEntry) const;
 
   MeasurementsAccessor&
-  getMeasurements()
+  getMeasurements() noexcept
   {
     return m_measurements;
   }
 
   Face*
-  getFace(FaceId id) const
+  getFace(FaceId id) const noexcept
   {
     return getFaceTable().get(id);
   }
 
   const FaceTable&
-  getFaceTable() const
+  getFaceTable() const noexcept
   {
     return m_forwarder.m_faceTable;
   }
@@ -374,9 +416,9 @@ protected: // accessors
 protected: // instance name
   struct ParsedInstanceName
   {
-    Name strategyName; ///< strategy name without parameters
-    optional<uint64_t> version; ///< whether strategyName contains a version component
-    PartialName parameters; ///< parameter components
+    Name strategyName; ///< Strategy name without parameters
+    std::optional<uint64_t> version; ///< The strategy version number, if present
+    PartialName parameters; ///< Parameter components, may be empty
   };
 
   /** \brief Parse a strategy instance name
@@ -403,10 +445,19 @@ protected: // instance name
    *  \note This must be called by strategy subclass constructor.
    */
   void
-  setInstanceName(const Name& name)
+  setInstanceName(const Name& name) noexcept
   {
     m_name = name;
   }
+
+NFD_PUBLIC_WITH_TESTS_ELSE_PROTECTED:
+  /**
+   * \brief Parse strategy parameters encoded in a strategy instance name
+   * \param params encoded parameters, typically obtained from a call to parseInstanceName()
+   * \throw std::invalid_argument the encoding format is invalid or unsupported by this implementation
+   */
+  static StrategyParameters
+  parseParameters(const PartialName& params);
 
 private: // registry
   using CreateFunc = std::function<unique_ptr<Strategy>(Forwarder&, const Name& /*strategyName*/)>;
@@ -428,12 +479,54 @@ private: // instance fields
   MeasurementsAccessor m_measurements;
 };
 
-} // namespace fw
-} // namespace nfd
+class StrategyParameters : public std::map<std::string, std::string>
+{
+public:
+  // Note: only arithmetic types are supported by getOrDefault() for now
 
-/** \brief Registers a strategy
+  template<typename T>
+  std::enable_if_t<std::is_signed_v<T>, T>
+  getOrDefault(const key_type& key, const T& defaultVal) const
+  {
+    auto it = find(key);
+    if (it == end()) {
+      return defaultVal;
+    }
+
+    T val{};
+    if (!boost::conversion::try_lexical_convert(it->second, val)) {
+      NDN_THROW(std::invalid_argument(key + " value is malformed"));
+    }
+    return val;
+  }
+
+  template<typename T>
+  std::enable_if_t<std::is_unsigned_v<T>, T>
+  getOrDefault(const key_type& key, const T& defaultVal) const
+  {
+    auto it = find(key);
+    if (it == end()) {
+      return defaultVal;
+    }
+
+    if (it->second.find('-') != std::string::npos) {
+      NDN_THROW(std::invalid_argument(key + " cannot be negative"));
+    }
+
+    T val{};
+    if (!boost::conversion::try_lexical_convert(it->second, val)) {
+      NDN_THROW(std::invalid_argument(key + " value is malformed"));
+    }
+    return val;
+  }
+};
+
+} // namespace nfd::fw
+
+/**
+ * \brief Registers a forwarding strategy.
  *
- *  This macro should appear once in .cpp of each strategy.
+ * This macro should appear once in the `.cpp` of each strategy.
  */
 #define NFD_REGISTER_STRATEGY(S)                       \
 static class NfdAuto ## S ## StrategyRegistrationClass \
@@ -444,5 +537,26 @@ public:                                                \
     ::nfd::fw::Strategy::registerType<S>();            \
   }                                                    \
 } g_nfdAuto ## S ## StrategyRegistrationVariable
+
+/// Logs the reception of \p interest on \p ingress, followed by \p msg, at DEBUG level.
+#define NFD_LOG_INTEREST_FROM(interest, ingress, msg)  \
+  NFD_LOG_DEBUG("interest=" << (interest).getName() << \
+                " nonce=" << (interest).getNonce() <<  \
+                " from=" << (ingress) <<               \
+                ' ' << msg)
+
+/// Logs the reception of \p data on \p ingress, followed by \p msg, at DEBUG level.
+#define NFD_LOG_DATA_FROM(data, ingress, msg)          \
+  NFD_LOG_DEBUG("data=" << (data).getName() <<         \
+                " from=" << (ingress) <<               \
+                ' ' << msg)
+
+/// Logs the reception of \p nack on \p ingress, followed by \p msg, at DEBUG level.
+#define NFD_LOG_NACK_FROM(nack, ingress, msg)                   \
+  NFD_LOG_DEBUG("nack=" << (nack).getInterest().getName() <<    \
+                " nonce=" << (nack).getInterest().getNonce() << \
+                " reason=" << (nack).getReason() <<             \
+                " from=" << (ingress) <<                        \
+                ' ' << msg)
 
 #endif // NFD_DAEMON_FW_STRATEGY_HPP

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,10 +27,9 @@
 
 #include <ndn-cxx/util/io.hpp>
 
-#include <boost/filesystem.hpp>
+#include <boost/filesystem/operations.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 using namespace ndn::security;
 
@@ -45,30 +44,6 @@ KeyChainFixture::~KeyChainFixture()
   for (const auto& certFile : m_certFiles) {
     boost::filesystem::remove(certFile, ec); // ignore error
   }
-}
-
-Certificate
-KeyChainFixture::makeCert(const Key& key, const std::string& issuer, const Key& signingKey)
-{
-  Certificate cert;
-  cert.setName(Name(key.getName())
-               .append(issuer)
-               .appendVersion());
-
-  // set metainfo
-  cert.setContentType(tlv::ContentType_Key);
-  cert.setFreshnessPeriod(1_h);
-
-  // set content
-  cert.setContent(key.getPublicKey().data(), key.getPublicKey().size());
-
-  // set signature info
-  ndn::SignatureInfo info;
-  auto now = time::system_clock::now();
-  info.setValidityPeriod(ValidityPeriod(now - 30_days, now + 30_days));
-
-  m_keyChain.sign(cert, signingByKey(signingKey ? signingKey : key).setSignatureInfo(info));
-  return cert;
 }
 
 bool
@@ -119,5 +94,4 @@ KeyChainFixture::saveIdentityCert(const Name& identityName, const std::string& f
   return saveIdentityCert(id, filename);
 }
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

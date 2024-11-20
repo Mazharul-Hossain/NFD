@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,15 +28,17 @@
 
 #include "fw/strategy.hpp"
 
-namespace nfd {
-namespace tests {
+#include <limits>
 
-/** \brief Forwarding strategy for unit testing
+namespace nfd::tests {
+
+/**
+ * \brief Forwarding strategy for unit testing.
  *
- *  Triggers are recorded but do nothing.
+ * Triggers are recorded but do nothing.
  *
- *  DummyStrategy registers itself as /dummy-strategy/<max-version>, so that it can be instantiated
- *  with any version number. Aliases can be created with the registerAs() function.
+ * DummyStrategy registers itself as `/dummy-strategy/<max-version>`, so that it can be instantiated
+ * with any version number. Aliases can be created with the registerAs() function.
  */
 class DummyStrategy : public fw::Strategy
 {
@@ -48,7 +50,7 @@ public:
   getStrategyName(uint64_t version = std::numeric_limits<uint64_t>::max());
 
   /**
-   * \brief Constructor
+   * \brief Constructor.
    *
    * \p name is recorded unchanged as getInstanceName(), and will not automatically
    * gain a version number when instantiated without a version number.
@@ -57,7 +59,7 @@ public:
   DummyStrategy(Forwarder& forwarder, const Name& name = getStrategyName());
 
   /**
-   * \brief After receive Interest trigger
+   * \brief After receive Interest trigger.
    *
    * If interestOutFace is not null, \p interest is forwarded to that face;
    * otherwise, rejectPendingInterest() is invoked.
@@ -86,7 +88,7 @@ public:
   afterNewNextHop(const fib::NextHop& nextHop, const shared_ptr<pit::Entry>& pitEntry) override;
 
 protected:
-  /** \brief register an alias
+  /** \brief Register an alias.
    *  \tparam S subclass of DummyStrategy
    */
   template<typename S>
@@ -111,7 +113,8 @@ public:
   shared_ptr<Face> interestOutFace;
 };
 
-/** \brief DummyStrategy with specific version
+/**
+ * \brief DummyStrategy with specific version.
  */
 template<uint64_t VERSION>
 class VersionedDummyStrategy : public DummyStrategy
@@ -129,7 +132,7 @@ public:
     return DummyStrategy::getStrategyName(VERSION);
   }
 
-  /** \brief constructor
+  /** \brief Constructor.
    *
    *  The strategy instance name is taken from \p name ; if it does not contain a version component,
    *  \p VERSION will be appended.
@@ -141,7 +144,6 @@ public:
   }
 };
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_DAEMON_FW_DUMMY_STRATEGY_HPP

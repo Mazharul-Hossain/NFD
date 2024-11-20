@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,165 +31,174 @@
 #include "lp-reassembler.hpp"
 #include "lp-reliability.hpp"
 
-namespace nfd {
-namespace face {
+#include <limits>
 
-/** \brief counters provided by GenericLinkService
- *  \note The type name 'GenericLinkServiceCounters' is implementation detail.
- *        Use 'GenericLinkService::Counters' in public API.
+namespace nfd::face {
+
+/**
+ * \brief Counters provided by GenericLinkService.
+ * \note The type name GenericLinkServiceCounters is an implementation detail.
+ *       Use GenericLinkService::Counters in public API.
  */
 class GenericLinkServiceCounters : public virtual LinkService::Counters
 {
 public:
-  /** \brief count of failed fragmentations
-   */
+  /// Count of failed fragmentations.
   PacketCounter nFragmentationErrors;
 
-  /** \brief count of outgoing LpPackets dropped due to exceeding MTU limit
+  /**
+   * \brief Count of outgoing LpPackets dropped due to exceeding MTU limit.
    *
-   *  If this counter is non-zero, the operator should enable fragmentation.
+   * If this counter is non-zero, the operator should enable fragmentation.
    */
   PacketCounter nOutOverMtu;
 
-  /** \brief count of invalid LpPackets dropped before reassembly
-   */
+  /// Count of invalid LpPackets dropped before reassembly.
   PacketCounter nInLpInvalid;
 
-  /** \brief count of network-layer packets currently being reassembled
-   */
+  /// Count of network-layer packets currently being reassembled.
   SizeCounter<LpReassembler> nReassembling;
 
-  /** \brief count of dropped partial network-layer packets due to reassembly timeout
-   */
+  /// Count of dropped partial network-layer packets due to reassembly timeout.
   PacketCounter nReassemblyTimeouts;
 
-  /** \brief count of invalid reassembled network-layer packets dropped
-   */
+  /// Count of invalid reassembled network-layer packets dropped.
   PacketCounter nInNetInvalid;
 
-  /** \brief count of network-layer packets that did not require retransmission of a fragment
-   */
+  /// Count of network-layer packets that did not require retransmission of a fragment.
   PacketCounter nAcknowledged;
 
-  /** \brief count of network-layer packets that had at least one fragment retransmitted, but were
-   *         eventually received in full
+  /**
+   * \brief Count of network-layer packets that had at least one fragment retransmitted,
+   *        but were eventually received in full.
    */
   PacketCounter nRetransmitted;
 
-  /** \brief count of network-layer packets dropped because a fragment reached the maximum number
-   *         of retransmissions
+  /**
+   * \brief Count of network-layer packets dropped because a fragment reached the maximum
+   *        number of retransmissions.
    */
   PacketCounter nRetxExhausted;
 
-  /** \brief count of LpPackets dropped due to duplicate Sequence numbers
-   */
+  /// Count of LpPackets dropped due to duplicate Sequence numbers.
   PacketCounter nDuplicateSequence;
 
-  /** \brief count of outgoing LpPackets that were marked with congestion marks
-   */
+  /// Count of outgoing LpPackets that were marked with congestion marks.
   PacketCounter nCongestionMarked;
 };
 
-/** \brief GenericLinkService is a LinkService that implements the NDNLPv2 protocol
- *  \sa https://redmine.named-data.net/projects/nfd/wiki/NDNLPv2
+/**
+ * \brief Options that control the behavior of GenericLinkService.
+ * \note The type name GenericLinkServiceOptions is an implementation detail.
+ *       Use GenericLinkService::Options in public API.
+ */
+struct GenericLinkServiceOptions
+{
+  /** \brief Enables encoding of IncomingFaceId, and decoding of NextHopFaceId and CachePolicy.
+   */
+  bool allowLocalFields = false;
+
+  /** \brief Enables fragmentation.
+   */
+  bool allowFragmentation = false;
+
+  /** \brief Options for fragmentation.
+   */
+  LpFragmenter::Options fragmenterOptions;
+
+  /** \brief Enables reassembly.
+   */
+  bool allowReassembly = false;
+
+  /** \brief Options for reassembly.
+   */
+  LpReassembler::Options reassemblerOptions;
+
+  /** \brief Options for reliability.
+   */
+  LpReliability::Options reliabilityOptions;
+
+  /** \brief Enables send queue congestion detection and marking.
+   */
+  bool allowCongestionMarking = false;
+
+  /** \brief Starting value for congestion marking interval.
+   *
+   *  Packets are marked if the queue size stays above THRESHOLD for at least one INTERVAL.
+   *
+   *  The default value (100 ms) is taken from RFC 8289 (CoDel).
+   */
+  time::nanoseconds baseCongestionMarkingInterval = 100_ms;
+
+  /** \brief Default congestion threshold in bytes.
+   *
+   *  Packets are marked if the queue size stays above THRESHOLD for at least one INTERVAL.
+   *
+   *  The default value (64 KiB) works well for a queue capacity of 200 KiB.
+   */
+  size_t defaultCongestionThreshold = 65536;
+
+  /** \brief Enables self-learning forwarding support.
+   */
+  bool allowSelfLearning = true;
+
+  /** \brief Overrides the MTU provided by Transport.
+   *
+   *  This MTU value will be used instead of the MTU provided by the transport if it is less than
+   *  the transport MTU. However, it will not be utilized when the transport MTU is unlimited.
+   *
+   *  Acceptable values for this option are values >= #MIN_MTU, which can be validated before
+   *  being set with canOverrideMtuTo().
+   */
+  ssize_t overrideMtu = std::numeric_limits<ssize_t>::max();
+};
+
+/**
+ * \brief GenericLinkService is a LinkService that implements the NDNLPv2 protocol.
+ * \sa https://redmine.named-data.net/projects/nfd/wiki/NDNLPv2
  */
 class GenericLinkService NFD_FINAL_UNLESS_WITH_TESTS : public LinkService
                                                      , protected virtual GenericLinkServiceCounters
 {
 public:
-  /** \brief Options that control the behavior of GenericLinkService
-   */
-  class Options
-  {
-  public:
-    Options() noexcept
-    {
-    }
-
-  public:
-    /** \brief enables encoding of IncomingFaceId, and decoding of NextHopFaceId and CachePolicy
-     */
-    bool allowLocalFields = false;
-
-    /** \brief enables fragmentation
-     */
-    bool allowFragmentation = false;
-
-    /** \brief options for fragmentation
-     */
-    LpFragmenter::Options fragmenterOptions;
-
-    /** \brief enables reassembly
-     */
-    bool allowReassembly = false;
-
-    /** \brief options for reassembly
-     */
-    LpReassembler::Options reassemblerOptions;
-
-    /** \brief options for reliability
-     */
-    LpReliability::Options reliabilityOptions;
-
-    /** \brief enables send queue congestion detection and marking
-     */
-    bool allowCongestionMarking = false;
-
-    /** \brief starting value for congestion marking interval
-     *
-     *  Packets are marked if the queue size stays above THRESHOLD for at least one INTERVAL.
-     *
-     *  The default value (100 ms) is taken from RFC 8289 (CoDel).
-     */
-    time::nanoseconds baseCongestionMarkingInterval = 100_ms;
-
-    /** \brief default congestion threshold in bytes
-     *
-     *  Packets are marked if the queue size stays above THRESHOLD for at least one INTERVAL.
-     *
-     *  The default value (64 KiB) works well for a queue capacity of 200 KiB.
-     */
-    size_t defaultCongestionThreshold = 65536;
-
-    /** \brief enables self-learning forwarding support
-     */
-    bool allowSelfLearning = true;
-
-    /** \brief overrides MTU provided by Transport
-     *
-     *  This MTU value will be used instead of the MTU provided by the transport if it is less than
-     *  the transport MTU. However, it will not be utilized when the transport MTU is unlimited.
-     *
-     *  Acceptable values for the override MTU are values >= MIN_MTU, which can be validated before
-     *  being set with canOverrideMtuTo().
-     */
-    ssize_t overrideMtu = std::numeric_limits<ssize_t>::max();
-  };
-
-  /** \brief counters provided by GenericLinkService
+  /**
+   * \brief %Counters provided by GenericLinkService.
    */
   using Counters = GenericLinkServiceCounters;
+
+  /**
+   * \brief %Options for GenericLinkService.
+   */
+  using Options = GenericLinkServiceOptions;
 
   explicit
   GenericLinkService(const Options& options = {});
 
-  /** \brief get Options used by GenericLinkService
+  /**
+   * \brief Get the options used by GenericLinkService.
    */
   const Options&
-  getOptions() const;
+  getOptions() const
+  {
+    return m_options;
+  }
 
-  /** \brief sets Options used by GenericLinkService
+  /**
+   * \brief Sets the options used by GenericLinkService.
    */
   void
   setOptions(const Options& options);
 
   const Counters&
-  getCounters() const NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
+  getCounters() const NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL
+  {
+    return *this;
+  }
 
   ssize_t
   getEffectiveMtu() const NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
-  /** \brief Whether MTU can be overridden to the specified value
+  /** \brief Whether MTU can be overridden to the specified value.
    *
    *  If the transport MTU is unlimited, then this will always return false.
    */
@@ -197,12 +206,12 @@ public:
   canOverrideMtuTo(ssize_t mtu) const;
 
 NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE: // send path
-  /** \brief request an IDLE packet to transmit pending service fields
+  /** \brief Request an IDLE packet to transmit pending service fields.
    */
   void
   requestIdlePacket();
 
-  /** \brief send an LpPacket
+  /** \brief Send an LpPacket.
    */
   void
   sendLpPacket(lp::Packet&& pkt);
@@ -216,28 +225,28 @@ NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE: // send path
   void
   doSendNack(const ndn::lp::Nack& nack) NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
-  /** \brief assign consecutive sequence numbers to LpPackets
+  /** \brief Assign consecutive sequence numbers to LpPackets.
    */
   void
   assignSequences(std::vector<lp::Packet>& pkts);
 
 private: // send path
-  /** \brief encode link protocol fields from tags onto an outgoing LpPacket
+  /** \brief Encode link protocol fields from tags onto an outgoing LpPacket.
    *  \param netPkt network-layer packet to extract tags from
    *  \param lpPacket LpPacket to add link protocol fields to
    */
   void
   encodeLpFields(const ndn::PacketBase& netPkt, lp::Packet& lpPacket);
 
-  /** \brief send a complete network layer packet
+  /** \brief Send a complete network layer packet.
    *  \param pkt LpPacket containing a complete network layer packet
    *  \param isInterest whether the network layer packet is an Interest
    */
   void
   sendNetPacket(lp::Packet&& pkt, bool isInterest);
 
-  /** \brief if the send queue is found to be congested, add a congestion mark to the packet
-   *         according to CoDel
+  /** \brief If the send queue is found to be congested, add a congestion mark to the packet
+   *         according to CoDel.
    *  \sa https://tools.ietf.org/html/rfc8289
    */
   void
@@ -247,7 +256,7 @@ private: // receive path
   void
   doReceivePacket(const Block& packet, const EndpointId& endpoint) NFD_OVERRIDE_WITH_TESTS_ELSE_FINAL;
 
-  /** \brief decode incoming network-layer packet
+  /** \brief Decode incoming network-layer packet.
    *  \param netPkt reassembled network-layer packet
    *  \param firstPkt LpPacket of first fragment
    *  \param endpointId endpoint of peer who sent the packet
@@ -258,7 +267,7 @@ private: // receive path
   void
   decodeNetPacket(const Block& netPkt, const lp::Packet& firstPkt, const EndpointId& endpointId);
 
-  /** \brief decode incoming Interest
+  /** \brief Decode incoming Interest.
    *  \param netPkt reassembled network-layer packet; TLV-TYPE must be Interest
    *  \param firstPkt LpPacket of first fragment; must not have Nack field
    *  \param endpointId endpoint of peer who sent the Interest
@@ -271,7 +280,7 @@ private: // receive path
   void
   decodeInterest(const Block& netPkt, const lp::Packet& firstPkt, const EndpointId& endpointId);
 
-  /** \brief decode incoming Interest
+  /** \brief Decode incoming Interest.
    *  \param netPkt reassembled network-layer packet; TLV-TYPE must be Data
    *  \param firstPkt LpPacket of first fragment
    *  \param endpointId endpoint of peer who sent the Data
@@ -284,7 +293,7 @@ private: // receive path
   void
   decodeData(const Block& netPkt, const lp::Packet& firstPkt, const EndpointId& endpointId);
 
-  /** \brief decode incoming Interest
+  /** \brief Decode incoming Interest.
    *  \param netPkt reassembled network-layer packet; TLV-TYPE must be Interest
    *  \param firstPkt LpPacket of first fragment; must have Nack field
    *  \param endpointId endpoint of peer who sent the Nack
@@ -302,30 +311,17 @@ NFD_PROTECTED_WITH_TESTS_ELSE_PRIVATE:
   LpFragmenter m_fragmenter;
   LpReassembler m_reassembler;
   LpReliability m_reliability;
-  lp::Sequence m_lastSeqNo;
+  lp::Sequence m_lastSeqNo = static_cast<lp::Sequence>(-2);
 
 NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
   /// Time to mark next packet due to send queue congestion
-  time::steady_clock::TimePoint m_nextMarkTime;
-  /// number of marked packets in the current incident of congestion
-  size_t m_nMarkedSinceInMarkingState;
+  time::steady_clock::time_point m_nextMarkTime = time::steady_clock::time_point::max();
+  /// Number of marked packets in the current incident of congestion
+  size_t m_nMarkedSinceInMarkingState = 0;
 
-  friend class LpReliability;
+  friend LpReliability;
 };
 
-inline const GenericLinkService::Options&
-GenericLinkService::getOptions() const
-{
-  return m_options;
-}
-
-inline const GenericLinkService::Counters&
-GenericLinkService::getCounters() const
-{
-  return *this;
-}
-
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_GENERIC_LINK_SERVICE_HPP

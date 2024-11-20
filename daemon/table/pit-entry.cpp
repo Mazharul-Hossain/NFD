@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -27,8 +27,37 @@
 
 #include <algorithm>
 
-namespace nfd {
-namespace pit {
+namespace nfd::pit {
+
+void
+FaceRecord::update(const Interest& interest)
+{
+  m_lastNonce = interest.getNonce();
+  m_lastRenewed = time::steady_clock::now();
+
+  auto lifetime = interest.getInterestLifetime();
+  // impose an upper bound on the lifetime to prevent integer overflow when calculating m_expiry
+  lifetime = std::min<time::milliseconds>(lifetime, 10_days);
+  m_expiry = m_lastRenewed + lifetime;
+}
+
+void
+InRecord::update(const Interest& interest)
+{
+  FaceRecord::update(interest);
+  m_interest = interest.shared_from_this();
+}
+
+bool
+OutRecord::setIncomingNack(const lp::Nack& nack)
+{
+  if (nack.getInterest().getNonce() != this->getLastNonce()) {
+    return false;
+  }
+
+  m_incomingNack = make_unique<lp::NackHeader>(nack.getHeader());
+  return true;
+}
 
 Entry::Entry(const Interest& interest)
   : m_interest(interest.shared_from_this())
@@ -49,10 +78,10 @@ Entry::canMatch(const Interest& interest, size_t nEqualNameComps) const
 }
 
 InRecordCollection::iterator
-Entry::getInRecord(const Face& face)
+Entry::findInRecord(const Face& face) noexcept
 {
   return std::find_if(m_inRecords.begin(), m_inRecords.end(),
-    [&face] (const InRecord& inRecord) { return &inRecord.getFace() == &face; });
+                      [&face] (const InRecord& inRecord) { return &inRecord.getFace() == &face; });
 }
 
 InRecordCollection::iterator
@@ -60,8 +89,7 @@ Entry::insertOrUpdateInRecord(Face& face, const Interest& interest)
 {
   BOOST_ASSERT(this->canMatch(interest));
 
-  auto it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
-    [&face] (const InRecord& inRecord) { return &inRecord.getFace() == &face; });
+  auto it = findInRecord(face);
   if (it == m_inRecords.end()) {
     m_inRecords.emplace_front(face);
     it = m_inRecords.begin();
@@ -71,27 +99,11 @@ Entry::insertOrUpdateInRecord(Face& face, const Interest& interest)
   return it;
 }
 
-void
-Entry::deleteInRecord(const Face& face)
-{
-  auto it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
-    [&face] (const InRecord& inRecord) { return &inRecord.getFace() == &face; });
-  if (it != m_inRecords.end()) {
-    m_inRecords.erase(it);
-  }
-}
-
-void
-Entry::clearInRecords()
-{
-  m_inRecords.clear();
-}
-
 OutRecordCollection::iterator
-Entry::getOutRecord(const Face& face)
+Entry::findOutRecord(const Face& face) noexcept
 {
   return std::find_if(m_outRecords.begin(), m_outRecords.end(),
-    [&face] (const OutRecord& outRecord) { return &outRecord.getFace() == &face; });
+                      [&face] (const OutRecord& outRecord) { return &outRecord.getFace() == &face; });
 }
 
 OutRecordCollection::iterator
@@ -99,8 +111,7 @@ Entry::insertOrUpdateOutRecord(Face& face, const Interest& interest)
 {
   BOOST_ASSERT(this->canMatch(interest));
 
-  auto it = std::find_if(m_outRecords.begin(), m_outRecords.end(),
-    [&face] (const OutRecord& outRecord) { return &outRecord.getFace() == &face; });
+  auto it = findOutRecord(face);
   if (it == m_outRecords.end()) {
     m_outRecords.emplace_front(face);
     it = m_outRecords.begin();
@@ -114,11 +125,10 @@ void
 Entry::deleteOutRecord(const Face& face)
 {
   auto it = std::find_if(m_outRecords.begin(), m_outRecords.end(),
-    [&face] (const OutRecord& outRecord) { return &outRecord.getFace() == &face; });
+                         [&face] (const OutRecord& outRecord) { return &outRecord.getFace() == &face; });
   if (it != m_outRecords.end()) {
     m_outRecords.erase(it);
   }
 }
 
-} // namespace pit
-} // namespace nfd
+} // namespace nfd::pit

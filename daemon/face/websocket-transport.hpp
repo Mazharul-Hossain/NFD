@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -29,44 +29,48 @@
 #include "transport.hpp"
 #include "websocketpp.hpp"
 
-namespace nfd {
-namespace face {
+#include <ndn-cxx/util/scheduler.hpp>
 
-/** \brief counters provided by WebSocketTransport
- *  \note The type name 'WebSocketTransportCounters' is implementation detail.
- *        Use 'WebSocketTransport::Counters' in public API.
+namespace nfd::face {
+
+/**
+ * \brief Counters provided by WebSocketTransport.
+ * \note The type name WebSocketTransportCounters is an implementation detail.
+ *       Use WebSocketTransport::Counters in public API.
  */
 class WebSocketTransportCounters : public virtual Transport::Counters
 {
 public:
-  /** \brief count of outgoing Pings
-   */
+  /// Count of outgoing pings.
   PacketCounter nOutPings;
-
-  /** \brief count of incoming Pongs
-   */
+  /// Count of incoming pongs.
   PacketCounter nInPongs;
 };
 
-/** \brief A Transport that communicates on a WebSocket connection
+/**
+ * \brief A Transport that communicates on a WebSocket connection.
  */
 class WebSocketTransport final : public Transport
                                , protected virtual WebSocketTransportCounters
 {
 public:
-  /** \brief counters provided by WebSocketTransport
+  /**
+   * \brief %Counters provided by WebSocketTransport.
    */
-  typedef WebSocketTransportCounters Counters;
+  using Counters = WebSocketTransportCounters;
 
   WebSocketTransport(websocketpp::connection_hdl hdl,
                      websocket::Server& server,
                      time::milliseconds pingInterval);
 
   const Counters&
-  getCounters() const final;
+  getCounters() const final
+  {
+    return *this;
+  }
 
-  /** \brief Translates a message into a Block
-   *         and delivers it to the link service
+  /**
+   * \brief Translates a message into a Block and delivers it to the link service.
    */
   void
   receiveMessage(const std::string& msg);
@@ -98,16 +102,9 @@ private:
   websocketpp::connection_hdl m_handle;
   websocket::Server& m_server;
   time::milliseconds m_pingInterval;
-  scheduler::ScopedEventId m_pingEventId;
+  ndn::scheduler::ScopedEventId m_pingEventId;
 };
 
-inline const WebSocketTransport::Counters&
-WebSocketTransport::getCounters() const
-{
-  return *this;
-}
-
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_WEBSOCKET_TRANSPORT_HPP

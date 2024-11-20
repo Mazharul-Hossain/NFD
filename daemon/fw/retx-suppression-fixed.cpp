@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -24,11 +24,9 @@
  */
 
 #include "retx-suppression-fixed.hpp"
+#include "algorithm.hpp"
 
-namespace nfd {
-namespace fw {
-
-const time::milliseconds RetxSuppressionFixed::DEFAULT_MIN_RETX_INTERVAL = 100_ms;
+namespace nfd::fw {
 
 RetxSuppressionFixed::RetxSuppressionFixed(const time::milliseconds& minRetxInterval)
   : m_minRetxInterval(minRetxInterval)
@@ -51,5 +49,4 @@ RetxSuppressionFixed::decidePerPitEntry(pit::Entry& pitEntry) const
   return shouldSuppress ? RetxSuppressionResult::SUPPRESS : RetxSuppressionResult::FORWARD;
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

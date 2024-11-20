@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,17 +28,16 @@
 #include <boost/lexical_cast.hpp>
 
 #include <ndn-cxx/encoding/tlv-nfd.hpp>
+#include <ndn-cxx/mgmt/nfd/status-dataset.hpp>
 
-namespace ndn {
-namespace tools {
-namespace autoconfig {
+namespace ndn::autoconfig {
 
 using nfd::ControlParameters;
 
-const Name HUB_DISCOVERY_PREFIX("/localhop/ndn-autoconf/hub");
-const uint64_t HUB_DISCOVERY_ROUTE_COST(1);
-const time::milliseconds HUB_DISCOVERY_ROUTE_EXPIRATION = 30_s;
-const time::milliseconds HUB_DISCOVERY_INTEREST_LIFETIME = 4_s;
+const Name HUB_DISCOVERY_PREFIX{"/localhop/ndn-autoconf/hub"};
+constexpr uint64_t HUB_DISCOVERY_ROUTE_COST = 1;
+constexpr time::milliseconds HUB_DISCOVERY_ROUTE_EXPIRATION = 30_s;
+constexpr time::milliseconds HUB_DISCOVERY_INTEREST_LIFETIME = 4_s;
 
 MulticastDiscovery::MulticastDiscovery(Face& face, nfd::Controller& controller)
   : m_face(face)
@@ -56,7 +55,7 @@ MulticastDiscovery::doStart()
     filter,
     [this] (const auto& dataset) { registerHubDiscoveryPrefix(dataset); },
     [this] (uint32_t code, const std::string& reason) {
-      fail("Error " + to_string(code) + " when querying multi-access faces: " + reason);
+      fail("Error " + std::to_string(code) + " when querying multi-access faces: " + reason);
     });
 }
 
@@ -120,7 +119,7 @@ MulticastDiscovery::setStrategy()
     parameters,
     [this] (const auto&) { requestHubData(); },
     [this] (const auto& resp) {
-      fail("Error " + to_string(resp.getCode()) + " when setting multicast strategy: " + resp.getText());
+      fail("Error " + std::to_string(resp.getCode()) + " when setting multicast strategy: " + resp.getText());
     });
 }
 
@@ -153,6 +152,4 @@ MulticastDiscovery::requestHubData()
     });
 }
 
-} // namespace autoconfig
-} // namespace tools
-} // namespace ndn
+} // namespace ndn::autoconfig

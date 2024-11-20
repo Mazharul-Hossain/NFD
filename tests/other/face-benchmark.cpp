@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -28,7 +28,9 @@
 #include "face/tcp-channel.hpp"
 #include "face/udp-channel.hpp"
 
+#include <boost/asio/signal_set.hpp>
 #include <boost/exception/diagnostic_information.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <fstream>
 #include <iostream>
@@ -37,8 +39,7 @@
 #include <valgrind/callgrind.h>
 #endif
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 class FaceBenchmark
 {
@@ -90,7 +91,7 @@ private:
     }
 
     if (m_faceUris.empty()) {
-      NDN_THROW(std::runtime_error("No supported FaceUri pairs found in config file"));
+      NDN_THROW_NO_STACK(std::runtime_error("No supported FaceUri pairs found in config file"));
     }
   }
 
@@ -102,14 +103,14 @@ private:
 
     // find a matching right uri
     FaceUri uriR;
-    for (const auto& pair : m_faceUris) {
-      if (pair.first.getHost() == faceL->getRemoteUri().getHost() &&
-          pair.first.getScheme() == faceL->getRemoteUri().getScheme()) {
-        uriR = pair.second;
+    for (const auto& [first, second] : m_faceUris) {
+      if (first.getHost() == faceL->getRemoteUri().getHost() &&
+          first.getScheme() == faceL->getRemoteUri().getScheme()) {
+        uriR = second;
       }
-      else if (pair.second.getHost() == faceL->getRemoteUri().getHost() &&
-               pair.second.getScheme() == faceL->getRemoteUri().getScheme()) {
-        uriR = pair.first;
+      else if (second.getHost() == faceL->getRemoteUri().getHost() &&
+               second.getScheme() == faceL->getRemoteUri().getScheme()) {
+        uriR = first;
       }
     }
 
@@ -120,21 +121,21 @@ private:
     }
 
     // create the right face
-    auto addr = boost::asio::ip::address::from_string(uriR.getHost());
+    auto addr = boost::asio::ip::make_address(uriR.getHost());
     auto port = boost::lexical_cast<uint16_t>(uriR.getPort());
     if (uriR.getScheme() == "tcp4") {
       m_tcpChannel.connect(tcp::Endpoint(addr, port), {},
-                           std::bind(&FaceBenchmark::onRightFaceCreated, this, faceL, _1),
+                           std::bind(&FaceBenchmark::onRightFaceCreated, faceL, _1),
                            std::bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
     }
     else if (uriR.getScheme() == "udp4") {
       m_udpChannel.connect(udp::Endpoint(addr, port), {},
-                           std::bind(&FaceBenchmark::onRightFaceCreated, this, faceL, _1),
+                           std::bind(&FaceBenchmark::onRightFaceCreated, faceL, _1),
                            std::bind(&FaceBenchmark::onFaceCreationFailed, _1, _2));
     }
   }
 
-  void
+  static void
   onRightFaceCreated(const shared_ptr<Face>& faceL, const shared_ptr<Face>& faceR)
   {
     std::clog << "Right face created: remote=" << faceR->getRemoteUri()
@@ -147,21 +148,22 @@ private:
   static void
   tieFaces(const shared_ptr<Face>& face1, const shared_ptr<Face>& face2)
   {
-    face1->afterReceiveInterest.connect([face2] (const Interest& interest, const EndpointId&) {
+    face1->afterReceiveInterest.connect([face2] (const auto& interest, const EndpointId&) {
       face2->sendInterest(interest);
     });
-    face1->afterReceiveData.connect([face2] (const Data& data, const EndpointId&) {
+    face1->afterReceiveData.connect([face2] (const auto& data, const EndpointId&) {
       face2->sendData(data);
     });
-    face1->afterReceiveNack.connect([face2] (const ndn::lp::Nack& nack, const EndpointId&) {
+    face1->afterReceiveNack.connect([face2] (const auto& nack, const EndpointId&) {
       face2->sendNack(nack);
     });
   }
 
-  static void
+  [[noreturn]] static void
   onFaceCreationFailed(uint32_t status, const std::string& reason)
   {
-    NDN_THROW(std::runtime_error("Failed to create face: [" + to_string(status) + "] " + reason));
+    NDN_THROW_NO_STACK(std::runtime_error("Failed to create face: [" +
+                                          std::to_string(status) + "] " + reason));
   }
 
 private:
@@ -171,13 +173,12 @@ private:
   std::vector<std::pair<FaceUri, FaceUri>> m_faceUris;
 };
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 int
 main(int argc, char** argv)
 {
-#ifdef _DEBUG
+#ifndef NDEBUG
   std::cerr << "Benchmark compiled in debug mode is unreliable, please compile in release mode.\n";
 #endif
 

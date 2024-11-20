@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,25 +30,25 @@
 #include "process-nack-traits.hpp"
 #include "retx-suppression-exponential.hpp"
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
-/** \brief Best Route strategy
+/**
+ * \brief "Best route" forwarding strategy.
  *
- *  This strategy forwards a new Interest to the lowest-cost nexthop (except downstream).
- *  After that, if consumer retransmits the Interest (and is not suppressed according to
- *  exponential backoff algorithm), the strategy forwards the Interest again to
- *  the lowest-cost nexthop (except downstream) that is not previously used.
- *  If all nexthops have been used, the strategy starts over with the first nexthop.
+ * This strategy forwards a new Interest to the lowest-cost nexthop (except downstream).
+ * After that, if consumer retransmits the Interest (and is not suppressed according to
+ * exponential backoff algorithm), the strategy forwards the Interest again to
+ * the lowest-cost nexthop (except downstream) that is not previously used.
+ * If all nexthops have been used, the strategy starts over with the first nexthop.
  *
- *  This strategy returns Nack to all downstreams with reason NoRoute
- *  if there is no usable nexthop, which may be caused by:
+ * This strategy returns Nack to all downstreams with reason NoRoute
+ * if there is no usable nexthop, which may be caused by:
  *  (a) the FIB entry contains no nexthop;
  *  (b) the FIB nexthop happens to be the sole downstream;
  *  (c) the FIB nexthops violate scope.
  *
- *  This strategy returns Nack to all downstreams if all upstreams have returned Nacks.
- *  The reason of the sent Nack equals the least severe reason among received Nacks.
+ * This strategy returns Nack to all downstreams if all upstreams have returned Nacks.
+ * The reason of the sent Nack equals the least severe reason among received Nacks.
  */
 class BestRouteStrategy : public Strategy
                         , public ProcessNackTraits<BestRouteStrategy>
@@ -70,14 +70,11 @@ public: // triggers
                    const shared_ptr<pit::Entry>& pitEntry) override;
 
 NFD_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
-  static const time::milliseconds RETX_SUPPRESSION_INITIAL;
-  static const time::milliseconds RETX_SUPPRESSION_MAX;
-  RetxSuppressionExponential m_retxSuppression;
+  std::unique_ptr<RetxSuppressionExponential> m_retxSuppression;
 
   friend ProcessNackTraits<BestRouteStrategy>;
 };
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw
 
 #endif // NFD_DAEMON_FW_BEST_ROUTE_STRATEGY_HPP

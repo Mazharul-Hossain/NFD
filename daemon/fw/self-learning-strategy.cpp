@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -34,15 +34,15 @@
 #include <ndn-cxx/lp/prefix-announcement-header.hpp>
 #include <ndn-cxx/lp/tags.hpp>
 
+#include <boost/asio/post.hpp>
 #include <boost/range/adaptor/reversed.hpp>
 
-namespace nfd {
-namespace fw {
+namespace nfd::fw {
 
 NFD_LOG_INIT(SelfLearningStrategy);
 NFD_REGISTER_STRATEGY(SelfLearningStrategy);
 
-const time::milliseconds SelfLearningStrategy::ROUTE_RENEW_LIFETIME(10_min);
+constexpr time::milliseconds ROUTE_RENEW_LIFETIME = 10_min;
 
 SelfLearningStrategy::SelfLearningStrategy(Forwarder& forwarder, const Name& name)
   : Strategy(forwarder)
@@ -52,8 +52,8 @@ SelfLearningStrategy::SelfLearningStrategy(Forwarder& forwarder, const Name& nam
     NDN_THROW(std::invalid_argument("SelfLearningStrategy does not accept parameters"));
   }
   if (parsed.version && *parsed.version != getStrategyName()[-1].toVersion()) {
-    NDN_THROW(std::invalid_argument(
-      "SelfLearningStrategy does not support version " + to_string(*parsed.version)));
+    NDN_THROW(std::invalid_argument("SelfLearningStrategy does not support version " +
+                                    std::to_string(*parsed.version)));
   }
   this->setInstanceName(makeInstanceName(name, getStrategyName()));
 }
@@ -73,11 +73,11 @@ SelfLearningStrategy::afterReceiveInterest(const Interest& interest, const FaceE
   const fib::NextHopList& nexthops = fibEntry.getNextHops();
 
   bool isNonDiscovery = interest.getTag<lp::NonDiscoveryTag>() != nullptr;
-  auto inRecordInfo = pitEntry->getInRecord(ingress.face)->insertStrategyInfo<InRecordInfo>().first;
+  auto inRecordInfo = pitEntry->findInRecord(ingress.face)->insertStrategyInfo<InRecordInfo>().first;
   if (isNonDiscovery) { // "non-discovery" Interest
     inRecordInfo->isNonDiscoveryInterest = true;
     if (nexthops.empty()) { // return NACK if no matching FIB entry exists
-      NFD_LOG_DEBUG("NACK non-discovery Interest=" << interest << " from=" << ingress << " noNextHop");
+      NFD_LOG_INTEREST_FROM(interest, ingress, "non-discovery no-nexthop");
       lp::NackHeader nackHeader;
       nackHeader.setReason(lp::NackReason::NO_ROUTE);
       this->sendNack(nackHeader, ingress.face, pitEntry);
@@ -103,9 +103,9 @@ void
 SelfLearningStrategy::afterReceiveData(const Data& data, const FaceEndpoint& ingress,
                                        const shared_ptr<pit::Entry>& pitEntry)
 {
-  auto outRecord = pitEntry->getOutRecord(ingress.face);
+  auto outRecord = pitEntry->findOutRecord(ingress.face);
   if (outRecord == pitEntry->out_end()) {
-    NFD_LOG_DEBUG("Data " << data.getName() << " from=" << ingress << " no out-record");
+    NFD_LOG_DATA_FROM(data, ingress, "no-out-record");
     return;
   }
 
@@ -133,11 +133,11 @@ void
 SelfLearningStrategy::afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                                        const shared_ptr<pit::Entry>& pitEntry)
 {
-  NFD_LOG_DEBUG("Nack for " << nack.getInterest() << " from=" << ingress
-                << " reason=" << nack.getReason());
+  NFD_LOG_NACK_FROM(nack, ingress, "");
+
   if (nack.getReason() == lp::NackReason::NO_ROUTE) { // remove FIB entries
     BOOST_ASSERT(this->lookupFib(*pitEntry).hasNextHops());
-    NFD_LOG_DEBUG("Send NACK to all downstreams");
+    NFD_LOG_DEBUG("Send Nack to all downstreams");
     this->sendNacks(nack.getHeader(), pitEntry);
     renewRoute(nack.getInterest().getName(), ingress.face.getId(), 0_ms);
   }
@@ -154,8 +154,7 @@ SelfLearningStrategy::broadcastInterest(const Interest& interest, const Face& in
       continue;
     }
 
-    NFD_LOG_DEBUG("send discovery Interest=" << interest << " from=" << inFace.getId() <<
-                  " to=" << outFace.getId());
+    NFD_LOG_INTEREST_FROM(interest, inFace.getId(), "send discovery to=" << outFace.getId());
     auto outRecord = this->sendInterest(interest, outFace, pitEntry);
     if (outRecord != nullptr) {
       outRecord->insertStrategyInfo<OutRecordInfo>().first->isNonDiscoveryInterest = false;
@@ -174,8 +173,7 @@ SelfLearningStrategy::multicastInterest(const Interest& interest, const Face& in
     }
 
     Face& outFace = nexthop.getFace();
-    NFD_LOG_DEBUG("send non-discovery Interest=" << interest << " from=" << inFace.getId() <<
-                  " to=" << outFace.getId());
+    NFD_LOG_INTEREST_FROM(interest, inFace.getId(), "send non-discovery to=" << outFace.getId());
     auto outRecord = this->sendInterest(interest, outFace, pitEntry);
     if (outRecord != nullptr) {
       outRecord->insertStrategyInfo<OutRecordInfo>().first->isNonDiscoveryInterest = true;
@@ -191,26 +189,28 @@ SelfLearningStrategy::asyncProcessData(const shared_ptr<pit::Entry>& pitEntry, c
   // (the PIT entry's expiry timer was set to 0 before dispatching)
   this->setExpiryTimer(pitEntry, 1_s);
 
-  runOnRibIoService([pitEntryWeak = weak_ptr<pit::Entry>{pitEntry}, inFaceId = inFace.getId(), data, this] {
-    rib::Service::get().getRibManager().slFindAnn(data.getName(),
-      [pitEntryWeak, inFaceId, data, this] (optional<ndn::PrefixAnnouncement> paOpt) {
-        if (paOpt) {
-          runOnMainIoService([pitEntryWeak, inFaceId, data, pa = std::move(*paOpt), this] {
-            auto pitEntry = pitEntryWeak.lock();
-            auto inFace = this->getFace(inFaceId);
-            if (pitEntry && inFace) {
-              NFD_LOG_DEBUG("found PrefixAnnouncement=" << pa.getAnnouncedName());
-              data.setTag(make_shared<lp::PrefixAnnouncementTag>(lp::PrefixAnnouncementHeader(pa)));
-              this->sendDataToAll(data, pitEntry, *inFace);
-              this->setExpiryTimer(pitEntry, 0_ms);
-            }
-            else {
-              NFD_LOG_DEBUG("PIT entry or Face no longer exists");
-            }
-          });
-        }
+  boost::asio::post(getRibIoService(),
+    [this, pitEntryWeak = weak_ptr<pit::Entry>{pitEntry}, inFaceId = inFace.getId(), data] {
+      rib::Service::get().getRibManager().slFindAnn(data.getName(),
+        [this, pitEntryWeak, inFaceId, data] (std::optional<ndn::PrefixAnnouncement> paOpt) {
+          if (paOpt) {
+            boost::asio::post(getMainIoService(),
+              [this, pitEntryWeak, inFaceId, data, pa = std::move(*paOpt)] {
+                auto pitEntry = pitEntryWeak.lock();
+                auto inFace = this->getFace(inFaceId);
+                if (pitEntry && inFace) {
+                  NFD_LOG_DEBUG("Found PrefixAnnouncement=" << pa.getAnnouncedName());
+                  data.setTag(make_shared<lp::PrefixAnnouncementTag>(lp::PrefixAnnouncementHeader(pa)));
+                  this->sendDataToAll(data, pitEntry, *inFace);
+                  this->setExpiryTimer(pitEntry, 0_ms);
+                }
+                else {
+                  NFD_LOG_DEBUG("PIT entry or face no longer exists");
+                }
+              });
+          }
+        });
     });
-  });
 }
 
 bool
@@ -238,25 +238,26 @@ void
 SelfLearningStrategy::addRoute(const shared_ptr<pit::Entry>& pitEntry, const Face& inFace,
                                const Data& data, const ndn::PrefixAnnouncement& pa)
 {
-  runOnRibIoService([pitEntryWeak = weak_ptr<pit::Entry>{pitEntry}, inFaceId = inFace.getId(), data, pa] {
-    rib::Service::get().getRibManager().slAnnounce(pa, inFaceId, ROUTE_RENEW_LIFETIME,
-      [] (RibManager::SlAnnounceResult res) {
-        NFD_LOG_DEBUG("Add route via PrefixAnnouncement with result=" << res);
-      });
-  });
+  boost::asio::post(getRibIoService(),
+    [pitEntryWeak = weak_ptr<pit::Entry>{pitEntry}, inFaceId = inFace.getId(), data, pa] {
+      rib::Service::get().getRibManager().slAnnounce(pa, inFaceId, ROUTE_RENEW_LIFETIME,
+        [] (RibManager::SlAnnounceResult res) {
+          NFD_LOG_DEBUG("Add route via PrefixAnnouncement with result=" << res);
+        });
+    });
 }
 
 void
 SelfLearningStrategy::renewRoute(const Name& name, FaceId inFaceId, time::milliseconds maxLifetime)
 {
   // renew route with PA or ignore PA (if route has no PA)
-  runOnRibIoService([name, inFaceId, maxLifetime] {
-    rib::Service::get().getRibManager().slRenew(name, inFaceId, maxLifetime,
-      [] (RibManager::SlAnnounceResult res) {
-        NFD_LOG_DEBUG("Renew route with result=" << res);
-      });
-  });
+  boost::asio::post(getRibIoService(),
+    [name, inFaceId, maxLifetime] {
+      rib::Service::get().getRibManager().slRenew(name, inFaceId, maxLifetime,
+        [] (RibManager::SlAnnounceResult res) {
+          NFD_LOG_DEBUG("Renew route with result=" << res);
+        });
+    });
 }
 
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw

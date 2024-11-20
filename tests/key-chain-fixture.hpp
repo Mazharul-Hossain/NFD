@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -31,8 +31,7 @@
 #include <ndn-cxx/security/key-chain.hpp>
 #include <ndn-cxx/security/signing-helpers.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 /**
  * @brief A fixture providing an in-memory KeyChain.
@@ -48,16 +47,6 @@ protected:
   using Key         = ndn::security::Key;
 
 public:
-  /**
-   * @brief Creates and returns a certificate for a given key
-   * @param key The key for which to make a certificate
-   * @param issuer The IssuerId to include in the certificate name
-   * @param signingKey The key with which to sign the certificate; if not provided, the
-   *                   certificate will be self-signed
-   */
-  Certificate
-  makeCert(const Key& key, const std::string& issuer, const Key& signingKey = Key());
-
   /**
    * @brief Saves an NDN certificate to a file
    * @return true if successful, false otherwise
@@ -95,7 +84,6 @@ private:
   std::vector<std::string> m_certFiles;
 };
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests
 
 #endif // NFD_TESTS_KEY_CHAIN_FIXTURE_HPP

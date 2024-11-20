@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -33,11 +33,9 @@
 
 namespace bdata = boost::unit_test::data;
 
-namespace nfd {
-namespace pit {
-namespace tests {
+namespace nfd::tests {
 
-using namespace nfd::tests;
+using namespace nfd::pit;
 
 BOOST_AUTO_TEST_SUITE(Table)
 BOOST_FIXTURE_TEST_SUITE(TestPitEntry, GlobalIoFixture)
@@ -51,14 +49,14 @@ BOOST_AUTO_TEST_CASE(CanMatch)
   auto interest1 = makeInterest("/B");
   BOOST_CHECK_EQUAL(entry.canMatch(*interest1), false);
 
-  auto interest2 = makeInterest("/A", false, nullopt, 27956);
+  auto interest2 = makeInterest("/A", false, std::nullopt, 27956);
   BOOST_CHECK_EQUAL(entry.canMatch(*interest2), true);
 
   auto interest3 = makeInterest("/A", false, 6210_ms);
   BOOST_CHECK_EQUAL(entry.canMatch(*interest3), true);
 
   auto interest4 = makeInterest("/A");
-  interest4->setForwardingHint({{10, "/telia/terabits"}, {20, "/ucla/cs"}});
+  interest4->setForwardingHint({"/telia/terabits", "/ucla/cs"});
   BOOST_CHECK_EQUAL(entry.canMatch(*interest4), false); // expected failure until #3162
 
   auto interest5 = makeInterest("/A", true);
@@ -100,7 +98,7 @@ BOOST_AUTO_TEST_CASE(InOutRecords)
   BOOST_CHECK_LE(in1->getLastRenewed(), after1);
   BOOST_CHECK_LE(in1->getExpiry() - in1->getLastRenewed() - interest1->getInterestLifetime(),
                  after1 - before1);
-  BOOST_CHECK(in1 == entry.getInRecord(*face1));
+  BOOST_CHECK(in1 == entry.findInRecord(*face1));
 
   // insert out-record
   auto before2 = time::steady_clock::now();
@@ -115,7 +113,7 @@ BOOST_AUTO_TEST_CASE(InOutRecords)
   BOOST_CHECK_LE(out1->getLastRenewed(), after2);
   BOOST_CHECK_LE(out1->getExpiry() - out1->getLastRenewed() - interest1->getInterestLifetime(),
                  after2 - before2);
-  BOOST_CHECK(out1 == entry.getOutRecord(*face1));
+  BOOST_CHECK(out1 == entry.findOutRecord(*face1));
 
   // update in-record
   auto before3 = time::steady_clock::now();
@@ -136,20 +134,20 @@ BOOST_AUTO_TEST_CASE(InOutRecords)
   BOOST_CHECK_EQUAL(&in3->getFace(), face2.get());
 
   // get in-record
-  InRecordCollection::iterator in4 = entry.getInRecord(*face1);
+  InRecordCollection::iterator in4 = entry.findInRecord(*face1);
   BOOST_REQUIRE(in4 != entry.in_end());
   BOOST_CHECK_EQUAL(&in4->getFace(), face1.get());
 
   // delete in-record
-  entry.deleteInRecord(*face1);
+  entry.deleteInRecord(in4);
   BOOST_CHECK_EQUAL(entry.getInRecords().size(), 1);
-  BOOST_CHECK(entry.getInRecord(*face1) == entry.in_end());
+  BOOST_CHECK(entry.findInRecord(*face1) == entry.in_end());
 
   // clear in-records
   entry.clearInRecords();
   BOOST_CHECK_EQUAL(entry.getInRecords().size(), 0);
-  BOOST_CHECK(entry.getInRecord(*face1) == entry.in_end());
-  BOOST_CHECK(entry.getInRecord(*face2) == entry.in_end());
+  BOOST_CHECK(entry.findInRecord(*face1) == entry.in_end());
+  BOOST_CHECK(entry.findInRecord(*face2) == entry.in_end());
 
   // insert another out-record
   OutRecordCollection::iterator out2 = entry.insertOrUpdateOutRecord(*face2, *interest4);
@@ -158,7 +156,7 @@ BOOST_AUTO_TEST_CASE(InOutRecords)
   BOOST_CHECK_EQUAL(&out2->getFace(), face2.get());
 
   // get out-record
-  OutRecordCollection::iterator out3 = entry.getOutRecord(*face1);
+  OutRecordCollection::iterator out3 = entry.findOutRecord(*face1);
   BOOST_REQUIRE(out3 != entry.out_end());
   BOOST_CHECK_EQUAL(&out3->getFace(), face1.get());
 
@@ -167,7 +165,7 @@ BOOST_AUTO_TEST_CASE(InOutRecords)
   const OutRecordCollection& outRecords4 = entry.getOutRecords();
   BOOST_REQUIRE_EQUAL(outRecords4.size(), 1);
   BOOST_CHECK_EQUAL(&outRecords4.begin()->getFace(), face1.get());
-  BOOST_CHECK(entry.getOutRecord(*face2) == entry.out_end());
+  BOOST_CHECK(entry.findOutRecord(*face2) == entry.out_end());
 }
 
 const time::milliseconds lifetimes[] = {
@@ -239,6 +237,4 @@ BOOST_AUTO_TEST_CASE(OutRecordNack)
 BOOST_AUTO_TEST_SUITE_END() // TestPitEntry
 BOOST_AUTO_TEST_SUITE_END() // Table
 
-} // namespace tests
-} // namespace pit
-} // namespace nfd
+} // namespace nfd::tests

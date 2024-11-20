@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -26,20 +26,16 @@
 #include "asf-measurements.hpp"
 #include "common/global.hpp"
 
-namespace nfd {
-    namespace fw {
-        namespace asf {
+namespace nfd::fw::asf {
 
-            const time::nanoseconds FaceInfo::RTT_NO_MEASUREMENT{-1};
-            const time::nanoseconds FaceInfo::RTT_TIMEOUT{-2};
-
-            time::nanoseconds
-            FaceInfo::scheduleTimeout(const Name &interestName, scheduler::EventCallback cb) {
-                BOOST_ASSERT(!m_timeoutEvent);
-                m_lastInterestName = interestName;
-                m_timeoutEvent = getScheduler().schedule(m_rttEstimator.getEstimatedRto(), std::move(cb));
-                return m_rttEstimator.getEstimatedRto();
-            }
+time::nanoseconds
+FaceInfo::scheduleTimeout(const Name& interestName, ndn::scheduler::EventCallback cb)
+{
+  BOOST_ASSERT(!m_timeoutEvent);
+  m_lastInterestName = interestName;
+  m_timeoutEvent = getScheduler().schedule(m_rttEstimator.getEstimatedRto(), std::move(cb));
+  return m_rttEstimator.getEstimatedRto();
+}
 
             void
             FaceInfo::cancelTimeout(const Name &prefix) {
@@ -57,28 +53,26 @@ namespace nfd {
                 return it != m_fiMap.end() ? &it->second : nullptr;
             }
 
-            FaceInfo &
-            NamespaceInfo::getOrCreateFaceInfo(FaceId faceId) {
-                auto ret = m_fiMap.emplace(std::piecewise_construct,
-                                           std::forward_as_tuple(faceId),
-                                           std::forward_as_tuple(m_rttEstimatorOpts));
-                auto &faceInfo = ret.first->second;
-                if (ret.second) {
-                    extendFaceInfoLifetime(faceInfo, faceId);
-                }
-                return faceInfo;
-            }
+FaceInfo&
+NamespaceInfo::getOrCreateFaceInfo(FaceId faceId)
+{
+  auto [it, isNew] = m_fiMap.try_emplace(faceId, m_rttEstimatorOpts);
+  auto& faceInfo = it->second;
+  if (isNew) {
+    extendFaceInfoLifetime(faceInfo, faceId);
+  }
+  return faceInfo;
+}
 
-            void
-            NamespaceInfo::extendFaceInfoLifetime(FaceInfo &info, FaceId faceId) {
-                info.m_measurementExpiration = getScheduler().schedule(AsfMeasurements::MEASUREMENTS_LIFETIME,
-                                                                       [=] { m_fiMap.erase(faceId); });
-            }
+void
+NamespaceInfo::extendFaceInfoLifetime(FaceInfo& info, FaceId faceId)
+{
+  info.m_measurementExpiration = getScheduler().schedule(m_measurementLifetime,
+                                                         [=] { m_fiMap.erase(faceId); });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-
-constexpr time::microseconds AsfMeasurements::MEASUREMENTS_LIFETIME;
 
 AsfMeasurements::AsfMeasurements(MeasurementsAccessor& measurements)
   : m_measurements(measurements)
@@ -109,7 +103,7 @@ AsfMeasurements::getNamespaceInfo(const Name& prefix)
   // Set or update entry lifetime
   extendLifetime(*me);
 
-  NamespaceInfo* info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts).first;
+  NamespaceInfo* info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts, m_measurementsLifetime).first;
   BOOST_ASSERT(info != nullptr);
   return info;
 }
@@ -133,7 +127,7 @@ AsfMeasurements::getOrCreateNamespaceInfo(const fib::Entry& fibEntry, const Name
   // Set or update entry lifetime
   extendLifetime(*me);
 
-  NamespaceInfo* info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts).first;
+  NamespaceInfo* info = me->insertStrategyInfo<NamespaceInfo>(m_rttEstimatorOpts, m_measurementsLifetime).first;
   BOOST_ASSERT(info != nullptr);
   return *info;
 }
@@ -141,9 +135,7 @@ AsfMeasurements::getOrCreateNamespaceInfo(const fib::Entry& fibEntry, const Name
 void
 AsfMeasurements::extendLifetime(measurements::Entry& me)
 {
-  m_measurements.extendLifetime(me, MEASUREMENTS_LIFETIME);
+  m_measurements.extendLifetime(me, m_measurementsLifetime);
 }
 
-} // namespace asf
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw::asf

@@ -7,20 +7,23 @@ Supported platforms
 NFD is built against a continuous integration system and has been tested on the
 following platforms:
 
--  Ubuntu 18.04 (amd64, armhf, i386)
--  Ubuntu 20.04 (amd64)
--  macOS 10.13
--  macOS 10.14
--  macOS 10.15
--  CentOS 8
+- Ubuntu 20.04 (focal)
+- Ubuntu 22.04 (jammy)
+- Ubuntu 24.04 (noble)
+- Debian 11 (bullseye)
+- Debian 12 (bookworm)
+- CentOS Stream 9
+- macOS 12 / 13 / 14
 
-NFD is known to work on the following platforms, although they are not officially
+NFD should also work on the following platforms, although they are not officially
 supported:
 
--  Debian 10 (Buster)
--  Fedora >= 29
--  Gentoo Linux
--  Raspbian >= 2019-06-20 (Buster)
+- Any other recent version of Ubuntu not listed above
+- Fedora >= 33
+- Alpine >= 3.12
+- Any version of Raspberry Pi OS based on Debian 11 (bullseye) or later
+- macOS >= 10.15
+- FreeBSD >= 12.2
 
 .. _Install NFD on Ubuntu Linux using the NDN PPA repository:
 
@@ -73,7 +76,7 @@ Downloading from git
 
 The first step is to obtain the source code for NFD and its main dependency, the
 *ndn-cxx* library. If you do not want a development version of NFD, make sure you
-checkout the correct release tag (e.g., ``*-0.7.1``) from both repositories.
+checkout the correct release tag (e.g., ``*-0.8.1``) from both repositories.
 
 .. code-block:: sh
 
@@ -92,12 +95,12 @@ checkout the correct release tag (e.g., ``*-0.7.1``) from both repositories.
 Prerequisites
 ~~~~~~~~~~~~~
 
-Install the `ndn-cxx library <https://named-data.net/doc/ndn-cxx/current/INSTALL.html>`__
+Install the `ndn-cxx library <https://docs.named-data.net/ndn-cxx/current/INSTALL.html>`__
 and its prerequisites.
 
 On Linux, NFD needs the following dependencies to enable optional features:
 
-- On **Ubuntu**:
+- On **Debian** and **Ubuntu**:
 
   .. code-block:: sh
 
@@ -107,7 +110,6 @@ On Linux, NFD needs the following dependencies to enable optional features:
 
   .. code-block:: sh
 
-    sudo dnf config-manager --enable powertools  # on CentOS only
     sudo dnf install libpcap-devel systemd-devel
 
 Build
@@ -117,7 +119,7 @@ The following commands can be used to build and install NFD from source:
 
 .. code-block:: sh
 
-    ./waf configure  # on CentOS, add --without-pch
+    ./waf configure
     ./waf
     sudo ./waf install
 
@@ -280,13 +282,12 @@ of NDN using the following applications and libraries.
 
 Sample applications:
 
-    + `Simple examples using the ndn-cxx library <https://named-data.net/doc/ndn-cxx/current/examples.html>`__
-    + `Introductory examples of NDN-CCL
-      <https://redmine.named-data.net/projects/application-development-documentation-guides/wiki/Step-By-Step_-_Common_Client_Libraries>`__
+    + `Simple examples using the ndn-cxx library <https://docs.named-data.net/ndn-cxx/current/examples.html>`__
+    + `Simple examples using the python-ndn library <https://python-ndn.readthedocs.io/en/latest/src/examples/basic_app.html>`__
 
 Real applications and libraries:
 
     + `ndn-tools - Essential NDN command-line tools <https://github.com/named-data/ndn-tools>`__
-    + `ndn-traffic-generator - Traffic generator for NDN <https://github.com/named-data/ndn-traffic-generator>`__
-    + `ChronoSync - Sync library for multi-user real-time applications <https://github.com/named-data/ChronoSync>`__
-    + `PSync - Partial and full synchronization library <https://github.com/named-data/PSync>`__
+    + `ndn-traffic-generator - Simple traffic generator for NDN <https://github.com/named-data/ndn-traffic-generator>`__
+    + `ndn-svs - State Vector Sync library <https://github.com/named-data/ndn-svs>`__
+    + `PSync - Partial and full Sync library <https://github.com/named-data/PSync>`__

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,13 +25,13 @@
 
 #include "generic-link-service.hpp"
 
+#include <ndn-cxx/lp/fields.hpp>
 #include <ndn-cxx/lp/pit-token.hpp>
 #include <ndn-cxx/lp/tags.hpp>
 
 #include <cmath>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 NFD_LOG_INIT(GenericLinkService);
 
@@ -44,9 +44,6 @@ GenericLinkService::GenericLinkService(const GenericLinkService::Options& option
   , m_fragmenter(m_options.fragmenterOptions, this)
   , m_reassembler(m_options.reassemblerOptions, this)
   , m_reliability(m_options.reliabilityOptions, this)
-  , m_lastSeqNo(-2)
-  , m_nextMarkTime(time::steady_clock::time_point::max())
-  , m_nMarkedSinceInMarkingState(0)
 {
   m_reassembler.beforeTimeout.connect([this] (auto&&...) { ++nReassemblyTimeouts; });
   m_reliability.onDroppedInterest.connect([this] (const auto& i) { notifyDroppedInterest(i); });
@@ -312,10 +309,7 @@ GenericLinkService::doReceivePacket(const Block& packet, const EndpointId& endpo
       return;
     }
 
-    bool isReassembled = false;
-    Block netPkt;
-    lp::Packet firstPkt;
-    std::tie(isReassembled, netPkt, firstPkt) = m_reassembler.receiveFragment(endpoint, pkt);
+    auto [isReassembled, netPkt, firstPkt] = m_reassembler.receiveFragment(endpoint, pkt);
     if (isReassembled) {
       this->decodeNetPacket(netPkt, firstPkt, endpoint);
     }
@@ -510,5 +504,4 @@ GenericLinkService::decodeNack(const Block& netPkt, const lp::Packet& firstPkt,
   this->receiveNack(nack, endpointId);
 }
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face

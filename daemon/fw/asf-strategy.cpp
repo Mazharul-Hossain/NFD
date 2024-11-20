@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,85 +25,52 @@
 
 #include "asf-strategy.hpp"
 #include "algorithm.hpp"
-#include "common/global.hpp"
 #include "common/logger.hpp"
+#include <boost/lexical_cast.hpp>
 
-namespace nfd {
-namespace fw {
-namespace asf {
+namespace nfd::fw::asf {
 
 NFD_LOG_INIT(AsfStrategy);
 NFD_REGISTER_STRATEGY(AsfStrategy);
 
-const time::milliseconds AsfStrategy::RETX_SUPPRESSION_INITIAL(10);
-const time::milliseconds AsfStrategy::RETX_SUPPRESSION_MAX(250);
-
 AsfStrategy::AsfStrategy(Forwarder& forwarder, const Name& name)
   : Strategy(forwarder)
-  , m_measurements(getMeasurements())
-  , m_probing(m_measurements)
-  , m_retxSuppression(RETX_SUPPRESSION_INITIAL,
-                      RetxSuppressionExponential::DEFAULT_MULTIPLIER,
-                      RETX_SUPPRESSION_MAX)
+  , ProcessNackTraits(this)
 {
   ParsedInstanceName parsed = parseInstanceName(name);
-  if (!parsed.parameters.empty()) {
-    processParams(parsed.parameters);
+  if (parsed.version && *parsed.version != getStrategyName()[-1].toVersion()) {
+    NDN_THROW(std::invalid_argument("AsfStrategy does not support version " +
+                                    std::to_string(*parsed.version)));
   }
 
-  if (parsed.version && *parsed.version != getStrategyName()[-1].toVersion()) {
-    NDN_THROW(std::invalid_argument(
-      "AsfStrategy does not support version " + to_string(*parsed.version)));
+  StrategyParameters params = parseParameters(parsed.parameters);
+  m_retxSuppression = RetxSuppressionExponential::construct(params);
+  auto probingInterval = params.getOrDefault<time::milliseconds::rep>("probing-interval",
+                                                                      m_probing.getProbingInterval().count());
+  m_probing.setProbingInterval(time::milliseconds(probingInterval));
+  m_nMaxTimeouts = params.getOrDefault<size_t>("max-timeouts", m_nMaxTimeouts);
+  auto measurementsLifetime = time::milliseconds(params.getOrDefault<time::milliseconds::rep>("measurements-lifetime",
+                                                                      AsfMeasurements::DEFAULT_MEASUREMENTS_LIFETIME.count()));
+  if (measurementsLifetime <= m_probing.getProbingInterval()) {
+    NDN_THROW(std::invalid_argument("Measurements lifetime (" + boost::lexical_cast<std::string>(measurementsLifetime) +
+                                    ") should be greater than the probing interval of " +
+                                    boost::lexical_cast<std::string>(m_probing.getProbingInterval())));
   }
+  m_measurements.setMeasurementsLifetime(measurementsLifetime);
+
   this->setInstanceName(makeInstanceName(name, getStrategyName()));
 
+  NDN_LOG_DEBUG(*m_retxSuppression);
   NFD_LOG_DEBUG("probing-interval=" << m_probing.getProbingInterval()
-                << " n-silent-timeouts=" << m_nMaxSilentTimeouts);
+                << " max-timeouts=" << m_nMaxTimeouts
+                << " measurements-lifetime=" << m_measurements.getMeasurementsLifetime());
 }
 
 const Name&
 AsfStrategy::getStrategyName()
 {
-  static const auto strategyName = Name("/localhost/nfd/strategy/asf").appendVersion(4);
+  static const auto strategyName = Name("/localhost/nfd/strategy/asf").appendVersion(5);
   return strategyName;
-}
-
-static uint64_t
-getParamValue(const std::string& param, const std::string& value)
-{
-  try {
-    if (!value.empty() && value[0] == '-')
-      NDN_THROW(boost::bad_lexical_cast());
-
-    return boost::lexical_cast<uint64_t>(value);
-  }
-  catch (const boost::bad_lexical_cast&) {
-    NDN_THROW(std::invalid_argument("Value of " + param + " must be a non-negative integer"));
-  }
-}
-
-void
-AsfStrategy::processParams(const PartialName& parsed)
-{
-  for (const auto& component : parsed) {
-    std::string parsedStr(reinterpret_cast<const char*>(component.value()), component.value_size());
-    auto n = parsedStr.find("~");
-    if (n == std::string::npos) {
-      NDN_THROW(std::invalid_argument("Format is <parameter>~<value>"));
-    }
-
-    auto f = parsedStr.substr(0, n);
-    auto s = parsedStr.substr(n + 1);
-    if (f == "probing-interval") {
-      m_probing.setProbingInterval(getParamValue(f, s));
-    }
-    else if (f == "n-silent-timeouts") {
-      m_nMaxSilentTimeouts = getParamValue(f, s);
-    }
-    else {
-      NDN_THROW(std::invalid_argument("Parameter should be probing-interval or n-silent-timeouts"));
-    }
-  }
 }
 
 void
@@ -114,34 +81,33 @@ AsfStrategy::afterReceiveInterest(const Interest& interest, const FaceEndpoint& 
 
   // Check if the interest is new and, if so, skip the retx suppression check
   if (!hasPendingOutRecords(*pitEntry)) {
-    auto* faceToUse = getBestFaceForForwarding(interest, ingress.face, fibEntry, pitEntry);
+    auto faceToUse = getBestFaceForForwarding(interest, ingress.face, fibEntry, pitEntry);
     if (faceToUse == nullptr) {
-      NFD_LOG_DEBUG(interest << " new-interest from=" << ingress << " no-nexthop");
+      NFD_LOG_INTEREST_FROM(interest, ingress, "new no-nexthop");
       sendNoRouteNack(ingress.face, pitEntry);
     }
     else {
-      NFD_LOG_DEBUG(interest << " new-interest from=" << ingress << " forward-to=" << faceToUse->getId());
+      NFD_LOG_INTEREST_FROM(interest, ingress, "new forward-to=" << faceToUse->getId());
       forwardInterest(interest, *faceToUse, fibEntry, pitEntry);
       sendProbe(interest, ingress, *faceToUse, fibEntry, pitEntry);
     }
     return;
   }
 
-  auto* faceToUse = getBestFaceForForwarding(interest, ingress.face, fibEntry, pitEntry, false);
+  auto faceToUse = getBestFaceForForwarding(interest, ingress.face, fibEntry, pitEntry, false);
   if (faceToUse != nullptr) {
-    auto suppressResult = m_retxSuppression.decidePerUpstream(*pitEntry, *faceToUse);
+    auto suppressResult = m_retxSuppression->decidePerUpstream(*pitEntry, *faceToUse);
     if (suppressResult == RetxSuppressionResult::SUPPRESS) {
       // Cannot be sent on this face, interest was received within the suppression window
-      NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress
-                    << " forward-to=" << faceToUse->getId() << " suppressed");
+      NFD_LOG_INTEREST_FROM(interest, ingress, "retx forward-to=" << faceToUse->getId() << " suppressed");
     }
     else {
       // The retx arrived after the suppression period: forward it but don't probe, because
       // probing was done earlier for this interest when it was newly received
-      NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress << " forward-to=" << faceToUse->getId());
+      NFD_LOG_INTEREST_FROM(interest, ingress, "retx forward-to=" << faceToUse->getId());
       auto* outRecord = forwardInterest(interest, *faceToUse, fibEntry, pitEntry);
       if (outRecord && suppressResult == RetxSuppressionResult::FORWARD) {
-        m_retxSuppression.incrementIntervalForOutRecord(*outRecord);
+        m_retxSuppression->incrementIntervalForOutRecord(*outRecord);
       }
     }
     return;
@@ -152,22 +118,21 @@ AsfStrategy::afterReceiveInterest(const Interest& interest, const FaceEndpoint& 
   const auto& nexthops = fibEntry.getNextHops();
   auto it = findEligibleNextHopWithEarliestOutRecord(ingress.face, interest, nexthops, pitEntry);
   if (it == nexthops.end()) {
-    NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress << " no eligible nexthop");
+    NFD_LOG_INTEREST_FROM(interest, ingress, "retx no-nexthop");
     return;
   }
   auto& outFace = it->getFace();
-  auto suppressResult = m_retxSuppression.decidePerUpstream(*pitEntry, outFace);
+  auto suppressResult = m_retxSuppression->decidePerUpstream(*pitEntry, outFace);
   if (suppressResult == RetxSuppressionResult::SUPPRESS) {
-    NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress
-                  << " retry-to=" << outFace.getId() << " suppressed");
+    NFD_LOG_INTEREST_FROM(interest, ingress, "retx retry-to=" << outFace.getId() << " suppressed");
   }
   else {
-    NFD_LOG_DEBUG(interest << " retx-interest from=" << ingress << " retry-to=" << outFace.getId());
+    NFD_LOG_INTEREST_FROM(interest, ingress, "retx retry-to=" << outFace.getId());
     // sendInterest() is used here instead of forwardInterest() because the measurements info
     // were already attached to this face in the previous forwarding
     auto* outRecord = sendInterest(interest, outFace, pitEntry);
     if (outRecord && suppressResult == RetxSuppressionResult::FORWARD) {
-      m_retxSuppression.incrementIntervalForOutRecord(*outRecord);
+      m_retxSuppression->incrementIntervalForOutRecord(*outRecord);
     }
   }
 }
@@ -178,25 +143,24 @@ AsfStrategy::beforeSatisfyInterest(const Data& data, const FaceEndpoint& ingress
 {
   NamespaceInfo* namespaceInfo = m_measurements.getNamespaceInfo(pitEntry->getName());
   if (namespaceInfo == nullptr) {
-    NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress << " no-measurements");
+    NFD_LOG_DATA_FROM(data, ingress, "no-measurements");
     return;
   }
 
   // Record the RTT between the Interest out to Data in
   FaceInfo* faceInfo = namespaceInfo->getFaceInfo(ingress.face.getId());
   if (faceInfo == nullptr) {
-    NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress << " no-face-info");
+    NFD_LOG_DATA_FROM(data, ingress, "no-face-info");
     return;
   }
 
-  auto outRecord = pitEntry->getOutRecord(ingress.face);
+  auto outRecord = pitEntry->findOutRecord(ingress.face);
   if (outRecord == pitEntry->out_end()) {
-    NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress << " no-out-record");
+    NFD_LOG_DATA_FROM(data, ingress, "no-out-record");
   }
   else {
     faceInfo->recordRtt(time::steady_clock::now() - outRecord->getLastRenewed());
-    NFD_LOG_DEBUG(pitEntry->getName() << " data from=" << ingress
-                  << " rtt=" << faceInfo->getLastRtt() << " srtt=" << faceInfo->getSrtt());
+    NFD_LOG_DATA_FROM(data, ingress, "rtt=" << faceInfo->getLastRtt() << " srtt=" << faceInfo->getSrtt());
   }
 
   // Extend lifetime for measurements associated with Face
@@ -204,14 +168,16 @@ AsfStrategy::beforeSatisfyInterest(const Data& data, const FaceEndpoint& ingress
   // Extend PIT entry timer to allow slower probes to arrive
   this->setExpiryTimer(pitEntry, 50_ms);
   faceInfo->cancelTimeout(data.getName());
+  faceInfo->setNTimeouts(0);
 }
 
 void
 AsfStrategy::afterReceiveNack(const lp::Nack& nack, const FaceEndpoint& ingress,
                               const shared_ptr<pit::Entry>& pitEntry)
 {
-  NFD_LOG_DEBUG(nack.getInterest() << " nack from=" << ingress << " reason=" << nack.getReason());
+  NFD_LOG_NACK_FROM(nack, ingress, "");
   onTimeoutOrNack(pitEntry->getName(), ingress.face.getId(), true);
+  this->processNack(nack, ingress.face, pitEntry);
 }
 
 pit::OutRecord*
@@ -254,56 +220,59 @@ AsfStrategy::sendProbe(const Interest& interest, const FaceEndpoint& ingress, co
 
   Interest probeInterest(interest);
   probeInterest.refreshNonce();
-  NFD_LOG_TRACE("Sending probe " << probeInterest << " to=" << faceToProbe->getId());
+  NFD_LOG_DEBUG("Sending probe " << probeInterest.getName() << " nonce=" << probeInterest.getNonce()
+                << " to=" << faceToProbe->getId() << " trigger-nonce=" << interest.getNonce());
   forwardInterest(probeInterest, *faceToProbe, fibEntry, pitEntry);
 
   m_probing.afterForwardingProbe(fibEntry, interest.getName());
 }
 
-struct FaceStats
+static auto
+getFaceRankForForwarding(const FaceStats& fs) noexcept
 {
-  Face* face;
-  time::nanoseconds rtt;
-  time::nanoseconds srtt;
-  uint64_t cost;
-};
+  // The RTT is used to store the status of the face:
+  //  - A positive value indicates data was received and is assumed to indicate a working face (group 1),
+  //  - RTT_NO_MEASUREMENT indicates a face is unmeasured (group 2),
+  //  - RTT_TIMEOUT indicates a face is timed out (group 3).
+  // These groups are defined in the technical report.
+  //
+  // When forwarding, we assume an order where working faces (group 1) are ranked
+  // higher than unmeasured faces (group 2), and unmeasured faces are ranked higher
+  // than timed out faces (group 3). We assign each group a priority value from 1-3
+  // to ensure lowest-to-highest ordering consistent with this logic.
 
-struct FaceStatsCompare
-{
-  bool
-  operator()(const FaceStats& lhs, const FaceStats& rhs) const
-  {
-    time::nanoseconds lhsValue = getValueForSorting(lhs);
-    time::nanoseconds rhsValue = getValueForSorting(rhs);
-
-    // Sort by RTT and then by cost
-    return std::tie(lhsValue, lhs.cost) < std::tie(rhsValue, rhs.cost);
+  // Working faces are ranked first in priority; if RTT is not
+  // a special value, we assume the face to be in this group.
+  int priority = 1;
+  if (fs.rtt == FaceInfo::RTT_NO_MEASUREMENT) {
+    priority = 2;
+  }
+  else if (fs.rtt == FaceInfo::RTT_TIMEOUT) {
+    priority = 3;
   }
 
-private:
-  static time::nanoseconds
-  getValueForSorting(const FaceStats& stats)
-  {
-    // These values allow faces with no measurements to be ranked better than timeouts
-    // srtt < RTT_NO_MEASUREMENT < RTT_TIMEOUT
-    if (stats.rtt == FaceInfo::RTT_TIMEOUT) {
-      return time::nanoseconds::max();
-    }
-    else if (stats.rtt == FaceInfo::RTT_NO_MEASUREMENT) {
-      return time::nanoseconds::max() / 2;
-    }
-    else {
-      return stats.srtt;
-    }
-  }
-};
+  // We set SRTT by default to the max value; if a face is working, we instead set it to the actual value.
+  // Unmeasured and timed out faces are not sorted by SRTT.
+  auto srtt = priority == 1 ? fs.srtt : time::nanoseconds::max();
+
+  // For ranking, group takes the priority over SRTT (if present) or cost, SRTT (if present)
+  // takes priority over cost, and cost takes priority over FaceId.
+  // FaceId is included to ensure all unique entries are included in the ranking (see #5310)
+  return std::tuple(priority, srtt, fs.cost, fs.face->getId());
+}
+
+bool
+AsfStrategy::FaceStatsForwardingCompare::operator()(const FaceStats& lhs, const FaceStats& rhs) const noexcept
+{
+  return getFaceRankForForwarding(lhs) < getFaceRankForForwarding(rhs);
+}
 
 Face*
 AsfStrategy::getBestFaceForForwarding(const Interest& interest, const Face& inFace,
                                       const fib::Entry& fibEntry, const shared_ptr<pit::Entry>& pitEntry,
                                       bool isInterestNew)
 {
-  std::set<FaceStats, FaceStatsCompare> rankedFaces;
+  FaceStatsForwardingSet rankedFaces;
 
   auto now = time::steady_clock::now();
   for (const auto& nh : fibEntry.getNextHops()) {
@@ -341,10 +310,10 @@ AsfStrategy::onTimeoutOrNack(const Name& interestName, FaceId faceId, bool isNac
   }
 
   auto& faceInfo = *fiPtr;
-  size_t nTimeouts = faceInfo.getNSilentTimeouts() + 1;
-  faceInfo.setNSilentTimeouts(nTimeouts);
+  size_t nTimeouts = faceInfo.getNTimeouts() + 1;
+  faceInfo.setNTimeouts(nTimeouts);
 
-  if (nTimeouts <= m_nMaxSilentTimeouts && !isNack) {
+  if (nTimeouts < m_nMaxTimeouts && !isNack) {
     NFD_LOG_TRACE(interestName << " face=" << faceId << " timeout-count=" << nTimeouts << " ignoring");
     // Extend lifetime for measurements associated with Face
     namespaceInfo->extendFaceInfoLifetime(faceInfo, faceId);
@@ -353,6 +322,7 @@ AsfStrategy::onTimeoutOrNack(const Name& interestName, FaceId faceId, bool isNac
   else {
     NFD_LOG_TRACE(interestName << " face=" << faceId << " timeout-count=" << nTimeouts);
     faceInfo.recordTimeout(interestName);
+    faceInfo.setNTimeouts(0);
   }
 }
 
@@ -365,6 +335,4 @@ AsfStrategy::sendNoRouteNack(Face& face, const shared_ptr<pit::Entry>& pitEntry)
   this->rejectPendingInterest(pitEntry);
 }
 
-} // namespace asf
-} // namespace fw
-} // namespace nfd
+} // namespace nfd::fw::asf

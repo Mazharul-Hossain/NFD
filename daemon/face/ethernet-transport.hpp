@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -30,13 +30,13 @@
 #include "pcap-helper.hpp"
 #include "transport.hpp"
 
+#include <boost/asio/posix/stream_descriptor.hpp>
 #include <ndn-cxx/net/network-interface.hpp>
 
-namespace nfd {
-namespace face {
+namespace nfd::face {
 
 /**
- * @brief Base class for Ethernet-based Transports
+ * @brief Base class for Ethernet-based Transports.
  */
 class EthernetTransport : public Transport
 {
@@ -48,14 +48,12 @@ public:
   };
 
   /**
-   * @brief Processes the payload of an incoming frame
-   * @param payload Pointer to the first byte of data after the Ethernet header
-   * @param length Payload length
+   * @brief Processes the payload of an incoming frame.
+   * @param payload Payload bytes, starting from the first byte after the Ethernet header
    * @param sender Sender address
    */
   void
-  receivePayload(const uint8_t* payload, size_t length,
-                 const ethernet::Address& sender);
+  receivePayload(span<const uint8_t> payload, const ethernet::Address& sender);
 
 protected:
   EthernetTransport(const ndn::net::NetworkInterface& localEndpoint,
@@ -84,7 +82,7 @@ private:
   doSend(const Block& packet) final;
 
   /**
-   * @brief Sends the specified TLV block on the network wrapped in an Ethernet frame
+   * @brief Sends the specified TLV block on the network wrapped in an Ethernet frame.
    */
   void
   sendPacket(const ndn::Block& block);
@@ -108,14 +106,13 @@ protected:
 private:
   signal::ScopedConnection m_netifStateChangedConn;
   signal::ScopedConnection m_netifMtuChangedConn;
-  bool m_hasRecentlyReceived;
-#ifdef _DEBUG
-  /// number of frames dropped by the kernel, as reported by libpcap
-  size_t m_nDropped;
+  bool m_hasRecentlyReceived = false;
+#ifndef NDEBUG
+  /// Number of frames dropped by the kernel, as reported by libpcap
+  size_t m_nDropped = 0;
 #endif
 };
 
-} // namespace face
-} // namespace nfd
+} // namespace nfd::face
 
 #endif // NFD_DAEMON_FACE_ETHERNET_TRANSPORT_HPP

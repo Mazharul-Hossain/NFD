@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2020,  Regents of the University of California,
+ * Copyright (c) 2014-2023,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -37,8 +37,7 @@
 
 #include <boost/property_tree/info_parser.hpp>
 
-namespace nfd {
-namespace tests {
+namespace nfd::tests {
 
 using rib::Route;
 
@@ -72,14 +71,14 @@ public:
     loadDefaultPaConfig();
   }
 
-  template<typename ...T>
+  template<typename... T>
   ndn::PrefixAnnouncement
   makeTrustedAnn(T&&... args)
   {
     return signPrefixAnn(makePrefixAnn(std::forward<T>(args)...), m_keyChain, m_trustedSigner);
   }
 
-  template<typename ...T>
+  template<typename... T>
   ndn::PrefixAnnouncement
   makeUntrustedAnn(T&&... args)
   {
@@ -91,7 +90,7 @@ public:
   SlAnnounceResult
   slAnnounceSync(const ndn::PrefixAnnouncement& pa, uint64_t faceId, time::milliseconds maxLifetime)
   {
-    optional<SlAnnounceResult> result;
+    std::optional<SlAnnounceResult> result;
     manager->slAnnounce(pa, faceId, maxLifetime,
       [&] (RibManager::SlAnnounceResult res) {
         BOOST_CHECK(!result);
@@ -108,7 +107,7 @@ public:
   SlAnnounceResult
   slRenewSync(const Name& name, uint64_t faceId, time::milliseconds maxLifetime)
   {
-    optional<SlAnnounceResult> result;
+    std::optional<SlAnnounceResult> result;
     manager->slRenew(name, faceId, maxLifetime,
       [&] (RibManager::SlAnnounceResult res) {
         BOOST_CHECK(!result);
@@ -122,19 +121,19 @@ public:
 
   /** \brief Invoke manager->slFindAnn and wait for result.
    */
-  optional<ndn::PrefixAnnouncement>
+  std::optional<ndn::PrefixAnnouncement>
   slFindAnnSync(const Name& name)
   {
-    optional<optional<ndn::PrefixAnnouncement>> result;
+    std::optional<std::optional<ndn::PrefixAnnouncement>> result;
     manager->slFindAnn(name,
-      [&] (optional<ndn::PrefixAnnouncement> found) {
+      [&] (std::optional<ndn::PrefixAnnouncement> found) {
         BOOST_CHECK(!result);
         result = found;
       });
 
     g_io.poll();
     BOOST_CHECK(result);
-    return result.value_or(nullopt);
+    return result.value_or(std::nullopt);
   }
 
   /** \brief Lookup a route with PREFIXANN origin.
@@ -153,13 +152,11 @@ public:
   std::string
   getIdentityCertificateBase64(const Name& identity) const
   {
-    auto cert = m_keyChain.getPib().getIdentity(identity).getDefaultKey().getDefaultCertificate();
-    const auto& block = cert.wireEncode();
-
     namespace tr = ndn::security::transform;
-    std::ostringstream oss;
-    tr::bufferSource(block.wire(), block.size()) >> tr::base64Encode(false) >> tr::streamSink(oss);
 
+    auto cert = m_keyChain.getPib().getIdentity(identity).getDefaultKey().getDefaultCertificate();
+    std::ostringstream oss;
+    tr::bufferSource(cert.wireEncode()) >> tr::base64Encode(false) >> tr::streamSink(oss);
     return oss.str();
   }
 
@@ -181,10 +178,10 @@ protected:
   unique_ptr<RibManager> manager;
 
 private:
-  ndn::util::DummyClientFace m_face;
+  ndn::DummyClientFace m_face;
   ndn::nfd::Controller m_nfdController;
   Dispatcher m_dispatcher;
-  rib::tests::MockFibUpdater m_fibUpdater;
+  MockFibUpdater m_fibUpdater;
 
   ndn::security::SigningInfo m_trustedSigner;
   ndn::security::SigningInfo m_untrustedSigner;
@@ -276,7 +273,7 @@ BOOST_AUTO_TEST_CASE(AnnounceReplace)
 
 BOOST_AUTO_TEST_CASE(AnnounceExpired)
 {
-  auto pa = makeTrustedAnn("/awrVv6V7", 1_h, std::make_pair(-3_h, -1_h));
+  auto pa = makeTrustedAnn("/awrVv6V7", 1_h, ndn::security::ValidityPeriod::makeRelative(-3_h, -1_h));
   BOOST_CHECK_EQUAL(slAnnounceSync(pa, 9087, 1_h), SlAnnounceResult::EXPIRED);
 
   BOOST_CHECK(findAnnRoute("/awrVv6V7", 9087) == nullptr);
@@ -378,5 +375,4 @@ BOOST_AUTO_TEST_SUITE_END() // SlAnnounce
 BOOST_AUTO_TEST_SUITE_END() // TestRibManager
 BOOST_AUTO_TEST_SUITE_END() // Mgmt
 
-} // namespace tests
-} // namespace nfd
+} // namespace nfd::tests

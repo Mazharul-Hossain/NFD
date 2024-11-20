@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2021,  Regents of the University of California,
+ * Copyright (c) 2014-2022,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -35,10 +35,12 @@ namespace nfd {
 class PrivilegeHelper
 {
 public:
-  /** \brief represents a serious seteuid/gid failure
+  /**
+   * \brief Indicates a serious seteuid/setegid failure.
    *
-   *  This should only be caught by main as part of a graceful program termination.
-   *  \note This is not an std::exception and NDN_THROW should not be used.
+   * This should only be caught by main as part of a graceful program termination.
+   *
+   * \note This is not an std::exception and NDN_THROW should not be used.
    */
   class Error
   {
@@ -71,7 +73,7 @@ public:
   {
     raise();
     try {
-      std::forward<F>(f)();
+      std::invoke(std::forward<F>(f));
     }
     catch (...) {
       drop();

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2014-2019,  Regents of the University of California,
+ * Copyright (c) 2014-2024,  Regents of the University of California,
  *                           Arizona Board of Regents,
  *                           Colorado State University,
  *                           University Pierre & Marie Curie, Sorbonne University,
@@ -25,8 +25,7 @@
 
 #include "fib-entry.hpp"
 
-namespace nfd {
-namespace fib {
+namespace nfd::fib {
 
 Entry::Entry(const Name& prefix)
   : m_prefix(prefix)
@@ -34,16 +33,14 @@ Entry::Entry(const Name& prefix)
 }
 
 NextHopList::iterator
-Entry::findNextHop(const Face& face)
+Entry::findNextHop(const Face& face) noexcept
 {
   return std::find_if(m_nextHops.begin(), m_nextHops.end(),
-                      [&face] (const NextHop& nexthop) {
-                        return &nexthop.getFace() == &face;
-                      });
+                      [&face] (const NextHop& nexthop) { return &nexthop.getFace() == &face; });
 }
 
 bool
-Entry::hasNextHop(const Face& face) const
+Entry::hasNextHop(const Face& face) const noexcept
 {
   return const_cast<Entry*>(this)->findNextHop(face) != m_nextHops.end();
 }
@@ -51,7 +48,7 @@ Entry::hasNextHop(const Face& face) const
 std::pair<NextHopList::iterator, bool>
 Entry::addOrUpdateNextHop(Face& face, uint64_t cost)
 {
-  auto it = this->findNextHop(face);
+  auto it = findNextHop(face);
   bool isNew = false;
   if (it == m_nextHops.end()) {
     m_nextHops.emplace_back(face);
@@ -62,13 +59,13 @@ Entry::addOrUpdateNextHop(Face& face, uint64_t cost)
   it->setCost(cost);
   this->sortNextHops();
 
-  return std::make_pair(it, isNew);
+  return {it, isNew};
 }
 
 bool
 Entry::removeNextHop(const Face& face)
 {
-  auto it = this->findNextHop(face);
+  auto it = findNextHop(face);
   if (it != m_nextHops.end()) {
     m_nextHops.erase(it);
     return true;
@@ -83,5 +80,4 @@ Entry::sortNextHops()
             [] (const NextHop& a, const NextHop& b) { return a.getCost() < b.getCost(); });
 }
 
-} // namespace fib
-} // namespace nfd
+} // namespace nfd::fib
