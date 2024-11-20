@@ -60,6 +60,7 @@ namespace nfd {
                 
                 // Allow Python to load modules from the current directory.
                 setenv("PYTHONPATH", "/home/vagrant/mini-ndn/ndn-src/NFD/daemon/fw/IFS-RL/", 1);
+
                 // Initialize Python.
                 Py_Initialize();
                 
@@ -79,7 +80,38 @@ namespace nfd {
                 NDN_LOG_INFO("Python error: " << str_path);
                 
                 try {
-                    python::object my_python_class_module = python::import("from model_main import ModelMain");
+                    // Build the name object
+                    PyObject *file_name = PyString_FromString((char*)"model_main");
+
+                    // python::object my_python_class_module = python::import("from model_main import ModelMain");
+                    PyObject *my_python_class_module = PyImport_Import(file_name);
+
+                    if (my_python_class_module == nullptr) {
+                        PyErr_Print();
+                        NDN_LOG_INFO("Python error: No module !");
+                    }
+
+                    // dict is a borrowed reference.
+                    PyObject *my_python_class_dict = PyModule_GetDict(my_python_class_module);
+                    if (my_python_class_dict == nullptr) {
+                        PyErr_Print();
+                        NDN_LOG_INFO("Python error: Fails to get the dictionary.");
+                    }
+
+                    // Builds the name of a callable class
+                    // python::object model_main_class = my_python_class_module.attr("ModelMain")();
+                    PyObject *model_main_class = PyDict_GetItemString(dict, "ModelMain");
+                    if (python_class == nullptr) {
+                        PyErr_Print();
+                        NDN_LOG_INFO("Fails to get the Python class.");
+                    }
+
+                    // Creates an instance of the class
+                    if (PyCallable_Check(model_main_class)) {
+                        PyObject *object = PyObject_CallObject(model_main_class, nullptr);
+                    } else {
+                        NDN_LOG_INFO("Cannot instantiate the Python class");
+                    }
                 }
                 catch (python::error_already_set& e) {
                     // https://stackoverflow.com/a/1418703/2049763
@@ -108,35 +140,35 @@ namespace nfd {
                     errorSummary_ = python::extract<std::string>(formatted);
                     NDN_LOG_INFO("Python error: " << errorSummary_);                    
                 }
-                try {
-                    python::object model_main_class = my_python_class_module.attr("ModelMain")();
-                }
-                catch (python::error_already_set& e) {
-                    NDN_LOG_INFO("Python error: Inside catch 2");
-                    PyErr_Print();
-                    
-                    PyObject *error_type = NULL,*error_value = NULL,*error_traceback = NULL;
-                    python::object formatted_list, formatted;
-                    PyErr_Fetch(&error_type,&error_value,&error_traceback);
-                    PyErr_NormalizeException(&error_type,&error_value,&error_traceback);
-                    
-                    python::handle<> hexc(python::allow_null(error_type)),hval(python::allow_null(error_value)),htb(python::allow_null(error_traceback)); 
-                    python::object traceback = python::import("traceback");
-                    python::object format_exception(traceback.attr("format_exception"));
-                    NDN_LOG_INFO("Python error: Inside catch 85");
-                    formatted_list = format_exception(hexc,hval,htb);
-                    NDN_LOG_INFO("Python error: Inside catch 87");
-                    
-                    formatted = python::str('\n').join(formatted_list);
-                    NDN_LOG_INFO("Python error: Inside catch 90");
-                    std::string errorSummary_ = python::extract<std::string>(formatted);
-                    NDN_LOG_INFO("Python error: " << errorSummary_);
-                    
-                    python::object format_exc(traceback.attr("format_exc"));
-                    formatted = format_exc();
-                    errorSummary_ = python::extract<std::string>(formatted);
-                    NDN_LOG_INFO("Python error: " << errorSummary_);           
-                }
+//                try {
+//                    python::object model_main_class = my_python_class_module.attr("ModelMain")();
+//                }
+//                catch (python::error_already_set& e) {
+//                    NDN_LOG_INFO("Python error: Inside catch 2");
+//                    PyErr_Print();
+//
+//                    PyObject *error_type = NULL,*error_value = NULL,*error_traceback = NULL;
+//                    python::object formatted_list, formatted;
+//                    PyErr_Fetch(&error_type,&error_value,&error_traceback);
+//                    PyErr_NormalizeException(&error_type,&error_value,&error_traceback);
+//
+//                    python::handle<> hexc(python::allow_null(error_type)),hval(python::allow_null(error_value)),htb(python::allow_null(error_traceback));
+//                    python::object traceback = python::import("traceback");
+//                    python::object format_exception(traceback.attr("format_exception"));
+//                    NDN_LOG_INFO("Python error: Inside catch 85");
+//                    formatted_list = format_exception(hexc,hval,htb);
+//                    NDN_LOG_INFO("Python error: Inside catch 87");
+//
+//                    formatted = python::str('\n').join(formatted_list);
+//                    NDN_LOG_INFO("Python error: Inside catch 90");
+//                    std::string errorSummary_ = python::extract<std::string>(formatted);
+//                    NDN_LOG_INFO("Python error: " << errorSummary_);
+//
+//                    python::object format_exc(traceback.attr("format_exc"));
+//                    formatted = format_exc();
+//                    errorSummary_ = python::extract<std::string>(formatted);
+//                    NDN_LOG_INFO("Python error: " << errorSummary_);
+//                }
             }
 
             const Name &
